@@ -21,8 +21,14 @@ class StoryRepository {
     return db.query(
       'pages',
       columns: [
-        'id', 'page_no', 'text_plain', 'text_rich_html',
-        'image_asset', 'tts_ssml', 'word_timing_json', 'duration_ms'
+        'id',
+        'page_no',
+        'text_plain',
+        'text_rich_html',
+        'image_asset',
+        'tts_ssml',
+        'word_timing_json',
+        'duration_ms',
       ],
       where: 'story_id = ?',
       whereArgs: [storyId],
@@ -35,7 +41,8 @@ class StoryRepository {
     final query = q.trim();
     if (query.isEmpty) return [];
     try {
-      return db.rawQuery('''
+      return db.rawQuery(
+        '''
         WITH results AS (
           SELECT s.id, s.title, s.synopsis, s.cover_asset
           FROM stories_fts f
@@ -51,9 +58,12 @@ class StoryRepository {
         )
         SELECT * FROM results
         ORDER BY title COLLATE NOCASE;
-      ''', [query, query]);
+      ''',
+        [query, query],
+      );
     } catch (_) {
-      return db.rawQuery('''
+      return db.rawQuery(
+        '''
         SELECT id, title, synopsis, cover_asset
         FROM stories
         WHERE title LIKE '%' || ? || '%' OR synopsis LIKE '%' || ? || '%'
@@ -64,7 +74,9 @@ class StoryRepository {
         WHERE p.text_plain LIKE '%' || ? || '%'
         GROUP BY id
         ORDER BY title COLLATE NOCASE;
-      ''', [query, query, query]);
+      ''',
+        [query, query, query],
+      );
     }
   }
 }

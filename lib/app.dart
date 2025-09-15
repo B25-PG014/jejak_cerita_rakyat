@@ -4,7 +4,6 @@ import 'providers/settings_provider.dart';
 import 'providers/story_provider.dart';
 import 'package:jejak_cerita_rakyat/features/tts_demo/tts_demo_screen.dart';
 
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -32,10 +31,7 @@ class MyApp extends StatelessWidget {
 
   TextTheme _textTheme(SettingsProvider s) {
     final base = Typography.material2021().black;
-    return base.apply(
-      fontFamily: s.fontFamily,
-      fontSizeFactor: s.textScale,
-    );
+    return base.apply(fontFamily: s.fontFamily, fontSizeFactor: s.textScale);
   }
 }
 
@@ -46,15 +42,16 @@ class _HomeScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final stories = context.watch<StoryProvider>().stories;
     return Scaffold(
-      appBar: AppBar(title: const Text('Library (Provider demo)'),
+      appBar: AppBar(
+        title: const Text('Library (Provider demo)'),
         actions: [
           IconButton(
             icon: const Icon(Icons.record_voice_over),
             tooltip: 'TTS Demo',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TtsDemoScreen()),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const TtsDemoScreen()));
             },
           ),
         ],
@@ -62,30 +59,34 @@ class _HomeScaffold extends StatelessWidget {
       body: stories.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : ListView.separated(
-        itemCount: stories.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (ctx, i) {
-          final s = stories[i];
-          return ListTile(
-            leading: CircleAvatar(child: Text(s.title.isNotEmpty ? s.title[0] : '?')),
-            title: Text(s.title),
-            subtitle: Text(s.synopsis ?? ''),
-            trailing: Text('${s.pageCount}p'),
-            onTap: () async {
-              // Minimal demo: open pages count in a dialog
-              final pages = await context.read<StoryProvider>().getPages(s.id);
-              if (!ctx.mounted) return;
-              showDialog(
-                context: ctx,
-                builder: (_) => AlertDialog(
+              itemCount: stories.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (ctx, i) {
+                final s = stories[i];
+                return ListTile(
+                  leading: CircleAvatar(
+                    child: Text(s.title.isNotEmpty ? s.title[0] : '?'),
+                  ),
                   title: Text(s.title),
-                  content: Text('Halaman: ${pages.length}'),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                  subtitle: Text(s.synopsis ?? ''),
+                  trailing: Text('${s.pageCount}p'),
+                  onTap: () async {
+                    // Minimal demo: open pages count in a dialog
+                    final pages = await context.read<StoryProvider>().getPages(
+                      s.id,
+                    );
+                    if (!ctx.mounted) return;
+                    showDialog(
+                      context: ctx,
+                      builder: (_) => AlertDialog(
+                        title: Text(s.title),
+                        content: Text('Halaman: ${pages.length}'),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
     );
   }
 }

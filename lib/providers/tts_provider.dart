@@ -12,8 +12,8 @@ class TtsProvider extends ChangeNotifier {
   bool _speaking = false;
   bool _paused = false;
 
-  double _rate = 0.5;   // 0.0 .. 1.0
-  double _pitch = 1.0;  // 0.5 .. 2.0
+  double _rate = 0.5; // 0.0 .. 1.0
+  double _pitch = 1.0; // 0.5 .. 2.0
   double _volume = 1.0; // 0.0 .. 1.0
   String _language = 'id-ID';
 
@@ -26,13 +26,36 @@ class TtsProvider extends ChangeNotifier {
   String get language => _language;
 
   Future<void> _init() async {
-    await _service.init(language: _language, rate: _rate, pitch: _pitch, volume: _volume);
+    await _service.init(
+      language: _language,
+      rate: _rate,
+      pitch: _pitch,
+      volume: _volume,
+    );
     _service.setHandlers(
-      onStart: () { _speaking = true; _paused = false; notifyListeners(); },
-      onCompletion: () { _speaking = false; _paused = false; notifyListeners(); },
-      onPause: () { _paused = true; notifyListeners(); },
-      onContinue: () { _paused = false; notifyListeners(); },
-      onError: (msg) { _speaking = false; _paused = false; notifyListeners(); },
+      onStart: () {
+        _speaking = true;
+        _paused = false;
+        notifyListeners();
+      },
+      onCompletion: () {
+        _speaking = false;
+        _paused = false;
+        notifyListeners();
+      },
+      onPause: () {
+        _paused = true;
+        notifyListeners();
+      },
+      onContinue: () {
+        _paused = false;
+        notifyListeners();
+      },
+      onError: (msg) {
+        _speaking = false;
+        _paused = false;
+        notifyListeners();
+      },
     );
     _ready = true;
     notifyListeners();

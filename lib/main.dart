@@ -27,8 +27,10 @@ void main() async {
         ),
         // Stories (library/list)
         ChangeNotifierProxyProvider<StoryRepository, StoryProvider>(
-          create: (ctx) => StoryProvider(repo: ctx.read<StoryRepository>())..loadStories(),
-          update: (ctx, repo, prev) => (prev ?? StoryProvider(repo: repo))..attachRepo(repo),
+          create: (ctx) =>
+              StoryProvider(repo: ctx.read<StoryRepository>())..loadStories(),
+          update: (ctx, repo, prev) =>
+              (prev ?? StoryProvider(repo: repo))..attachRepo(repo),
         ),
         // Reader (depends on Settings for TTS prefs if you integrate later)
         ChangeNotifierProvider<ReaderProvider>(

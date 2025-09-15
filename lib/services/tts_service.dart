@@ -7,12 +7,17 @@ class TtsService {
   final FlutterTts _tts = FlutterTts();
   bool _initialized = false;
 
-  Future<void> init({String language = 'id-ID', double rate = 0.5, double pitch = 1.0, double volume = 1.0}) async {
+  Future<void> init({
+    String language = 'id-ID',
+    double rate = 0.5,
+    double pitch = 1.0,
+    double volume = 1.0,
+  }) async {
     if (_initialized) return;
     await _tts.setLanguage(language);
-    await _tts.setSpeechRate(rate);   // 0.0 .. 1.0 (plugin maps per platform)
-    await _tts.setPitch(pitch);       // 0.5 .. 2.0
-    await _tts.setVolume(volume);     // 0.0 .. 1.0
+    await _tts.setSpeechRate(rate); // 0.0 .. 1.0 (plugin maps per platform)
+    await _tts.setPitch(pitch); // 0.5 .. 2.0
+    await _tts.setVolume(volume); // 0.0 .. 1.0
 
     // Ensure completion awaits so UI can react to done event
     await _tts.awaitSpeakCompletion(true);
@@ -53,7 +58,8 @@ class TtsService {
   }
 
   Future<List<String>> languages() async {
-    final langs = await _tts.getLanguages as List?; // some platforms return List<dynamic>
+    final langs =
+        await _tts.getLanguages as List?; // some platforms return List<dynamic>
     return langs?.map((e) => e.toString()).toList() ?? <String>[];
   }
 

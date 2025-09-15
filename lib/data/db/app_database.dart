@@ -68,8 +68,12 @@ class AppDatabase {
       );
     ''');
 
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_stories_title ON stories(title);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_stories_locale ON stories(locale);');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_stories_title ON stories(title);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_stories_locale ON stories(locale);',
+    );
 
     await db.execute('''
       CREATE TRIGGER IF NOT EXISTS trg_stories_touch
@@ -98,8 +102,12 @@ class AppDatabase {
       );
     ''');
 
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_pages_story ON pages(story_id);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_pages_story_order ON pages(story_id, page_no);');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_pages_story ON pages(story_id);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_pages_story_order ON pages(story_id, page_no);',
+    );
 
     await db.execute('''
       CREATE TRIGGER IF NOT EXISTS trg_pages_touch
@@ -181,8 +189,12 @@ class AppDatabase {
       ''');
 
       // Build awal isi FTS dari content table
-      await db.execute('INSERT INTO stories_fts(stories_fts) VALUES (\'rebuild\');');
-      await db.execute('INSERT INTO pages_fts(pages_fts) VALUES (\'rebuild\');');
+      await db.execute(
+        'INSERT INTO stories_fts(stories_fts) VALUES (\'rebuild\');',
+      );
+      await db.execute(
+        'INSERT INTO pages_fts(pages_fts) VALUES (\'rebuild\');',
+      );
     } catch (e) {
       // Jika device tidak mendukung FTS5, abaikan—nanti search() pakai LIKE fallback
       // print('FTS not available: $e');
@@ -193,7 +205,11 @@ class AppDatabase {
 
   Future<void> _seedDummy(Database db) async {
     // Hindari seed dobel
-    final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM stories')) ?? 0;
+    final count =
+        Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM stories'),
+        ) ??
+        0;
     if (count > 0) return;
 
     Future<int> addStory({
@@ -234,12 +250,14 @@ class AppDatabase {
         pages: [
           {
             'page_no': 1,
-            'text_plain': 'Alkisah, Bawang Putih gadis rajin dan baik hati tinggal bersama ibu tiri dan Bawang Merah.',
+            'text_plain':
+                'Alkisah, Bawang Putih gadis rajin dan baik hati tinggal bersama ibu tiri dan Bawang Merah.',
             'image_asset': 'assets/images/ui/page1.png',
           },
           {
             'page_no': 2,
-            'text_plain': 'Kebaikan Bawang Putih berbuah kebahagiaan; iri hati Bawang Merah berakhir penyesalan.',
+            'text_plain':
+                'Kebaikan Bawang Putih berbuah kebahagiaan; iri hati Bawang Merah berakhir penyesalan.',
             'image_asset': 'assets/images/ui/page2.png',
           },
         ],
@@ -254,12 +272,14 @@ class AppDatabase {
         pages: [
           {
             'page_no': 1,
-            'text_plain': 'Malin berlayar merantau dan menjadi kaya, namun malu mengakui ibunya.',
+            'text_plain':
+                'Malin berlayar merantau dan menjadi kaya, namun malu mengakui ibunya.',
             'image_asset': 'assets/images/ui/page1.png',
           },
           {
             'page_no': 2,
-            'text_plain': 'Doa sang ibu membuat Malin mendapat pelajaran berharga tentang hormat.',
+            'text_plain':
+                'Doa sang ibu membuat Malin mendapat pelajaran berharga tentang hormat.',
             'image_asset': 'assets/images/ui/page2.png',
           },
         ],
@@ -274,12 +294,14 @@ class AppDatabase {
         pages: [
           {
             'page_no': 1,
-            'text_plain': 'Timun Mas berlari sambil menebar biji, garam, dan terasi untuk mengelabui raksasa.',
+            'text_plain':
+                'Timun Mas berlari sambil menebar biji, garam, dan terasi untuk mengelabui raksasa.',
             'image_asset': 'assets/images/ui/page1.png',
           },
           {
             'page_no': 2,
-            'text_plain': 'Dengan kecerdikan, Timun Mas selamat dan berkumpul kembali dengan ibunya.',
+            'text_plain':
+                'Dengan kecerdikan, Timun Mas selamat dan berkumpul kembali dengan ibunya.',
             'image_asset': 'assets/images/ui/page2.png',
           },
         ],
@@ -289,17 +311,20 @@ class AppDatabase {
       await addStory(
         slug: 'sangkuriang',
         title: 'Sangkuriang',
-        synopsis: 'Asal-usul Tangkuban Perahu—sebuah perahu terbalik menjadi gunung.',
+        synopsis:
+            'Asal-usul Tangkuban Perahu—sebuah perahu terbalik menjadi gunung.',
         coverAsset: 'assets/images/covers/sangkuriang.png',
         pages: [
           {
             'page_no': 1,
-            'text_plain': 'Sangkuriang berusaha membuat perahu raksasa dalam semalam.',
+            'text_plain':
+                'Sangkuriang berusaha membuat perahu raksasa dalam semalam.',
             'image_asset': 'assets/images/ui/page1.png',
           },
           {
             'page_no': 2,
-            'text_plain': 'Ketika gagal, perahu ditendang hingga terbalik menjadi gunung.',
+            'text_plain':
+                'Ketika gagal, perahu ditendang hingga terbalik menjadi gunung.',
             'image_asset': 'assets/images/ui/page2.png',
           },
         ],
@@ -314,12 +339,14 @@ class AppDatabase {
         pages: [
           {
             'page_no': 1,
-            'text_plain': 'Kancil menipu buaya untuk berbaris agar bisa menyeberang sungai.',
+            'text_plain':
+                'Kancil menipu buaya untuk berbaris agar bisa menyeberang sungai.',
             'image_asset': 'assets/images/ui/page1.png',
           },
           {
             'page_no': 2,
-            'text_plain': 'Dengan sopan dan cerdas, Kancil berhasil melewati sungai dengan selamat.',
+            'text_plain':
+                'Dengan sopan dan cerdas, Kancil berhasil melewati sungai dengan selamat.',
             'image_asset': 'assets/images/ui/page2.png',
           },
         ],
@@ -352,7 +379,7 @@ class AppDatabase {
         'image_asset',
         'tts_ssml',
         'word_timing_json',
-        'duration_ms'
+        'duration_ms',
       ],
       where: 'story_id = ?',
       whereArgs: [storyId],
@@ -368,7 +395,8 @@ class AppDatabase {
 
     try {
       // UNION FTS: judul/sinopsis + isi halaman → list unik story
-      final rows = await db.rawQuery('''
+      final rows = await db.rawQuery(
+        '''
         WITH results AS (
           SELECT s.id, s.title, s.synopsis, s.cover_asset
           FROM stories_fts f
@@ -384,13 +412,16 @@ class AppDatabase {
         )
         SELECT * FROM results
         ORDER BY title COLLATE NOCASE;
-      ''', [q, q]);
+      ''',
+        [q, q],
+      );
 
       // Jika FTS tabel ada tapi kosong dan hasil nol → tetap kembalikan nol (tidak melempar).
       return rows;
     } catch (_) {
       // FTS tidak tersedia → fallback LIKE
-      return db.rawQuery('''
+      return db.rawQuery(
+        '''
         SELECT id, title, synopsis, cover_asset
         FROM stories
         WHERE title LIKE '%' || ? || '%' OR synopsis LIKE '%' || ? || '%'
@@ -401,7 +432,9 @@ class AppDatabase {
         WHERE p.text_plain LIKE '%' || ? || '%'
         GROUP BY id
         ORDER BY title COLLATE NOCASE;
-      ''', [q, q, q]);
+      ''',
+        [q, q, q],
+      );
     }
   }
 

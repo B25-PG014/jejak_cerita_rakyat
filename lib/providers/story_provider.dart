@@ -87,13 +87,17 @@ class StoryProvider extends ChangeNotifier {
 
   Future<List<StoryItem>> search(String query) async {
     final rows = await _repo.searchStories(query);
-    return rows.map((e) => StoryItem(
-      id: e['id'] as int,
-      slug: e['slug']?.toString() ?? '',
-      title: e['title']?.toString() ?? '',
-      synopsis: e['synopsis']?.toString(),
-      coverAsset: e['cover_asset']?.toString() ?? '',
-      pageCount: (e['page_count'] as num?)?.toInt() ?? 0,
-    )).toList();
+    return rows
+        .map(
+          (e) => StoryItem(
+            id: e['id'] as int,
+            slug: e['slug']?.toString() ?? '',
+            title: e['title']?.toString() ?? '',
+            synopsis: e['synopsis']?.toString(),
+            coverAsset: e['cover_asset']?.toString() ?? '',
+            pageCount: (e['page_count'] as num?)?.toInt() ?? 0,
+          ),
+        )
+        .toList();
   }
 }

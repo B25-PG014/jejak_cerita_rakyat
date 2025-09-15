@@ -5,7 +5,7 @@ class SettingsProvider extends ChangeNotifier {
   // Theme & text
   ThemeMode _themeMode = ThemeMode.system;
   String _fontFamily = 'Atkinson'; // defined in pubspec fonts
-  double _textScale = 1.0;         // 0.8..1.4 suggested
+  double _textScale = 1.0; // 0.8..1.4 suggested
 
   ThemeMode get themeMode => _themeMode;
   String get fontFamily => _fontFamily;
@@ -18,11 +18,13 @@ class SettingsProvider extends ChangeNotifier {
     final scale = sp.getDouble('textScale');
 
     if (themeStr != null) {
-      _themeMode = {
-        'light': ThemeMode.light,
-        'dark' : ThemeMode.dark,
-        'system': ThemeMode.system,
-      }[themeStr] ?? ThemeMode.system;
+      _themeMode =
+          {
+            'light': ThemeMode.light,
+            'dark': ThemeMode.dark,
+            'system': ThemeMode.system,
+          }[themeStr] ??
+          ThemeMode.system;
     }
     if (font != null) _fontFamily = font;
     if (scale != null) _textScale = scale.clamp(0.8, 1.6);
@@ -32,11 +34,14 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
     final sp = await SharedPreferences.getInstance();
-    await sp.setString('themeMode', {
-      ThemeMode.light: 'light',
-      ThemeMode.dark: 'dark',
-      ThemeMode.system: 'system',
-    }[mode]!);
+    await sp.setString(
+      'themeMode',
+      {
+        ThemeMode.light: 'light',
+        ThemeMode.dark: 'dark',
+        ThemeMode.system: 'system',
+      }[mode]!,
+    );
     notifyListeners();
   }
 
