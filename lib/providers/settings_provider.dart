@@ -27,7 +27,8 @@ class SettingsProvider extends ChangeNotifier {
           ThemeMode.system;
     }
     if (font != null) _fontFamily = font;
-    if (scale != null) _textScale = scale.clamp(0.8, 1.6);
+    // kasih default 1.0 kalau null
+    _textScale = (scale ?? 1.0).clamp(0.8, 1.6);
     notifyListeners();
   }
 
