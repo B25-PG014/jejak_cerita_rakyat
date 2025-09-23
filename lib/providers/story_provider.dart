@@ -65,12 +65,14 @@ class StoryProvider extends ChangeNotifier {
     _repo = repo;
   }
 
+  /// Load the list from SQLite and notify listeners.
   Future<void> loadStories() async {
     _loading = true;
     _error = null;
     notifyListeners();
     try {
-      final rows = await _repo.fetchStories();
+      final rows = await _repo
+          .fetchStories(); // SELECT from v_story_with_counts
       _stories = rows.map((e) => StoryItem.fromMap(e)).toList();
     } catch (e) {
       _error = e.toString();
@@ -79,6 +81,9 @@ class StoryProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Public alias you can call after importing JSON to refresh the Home grid.
+  Future<void> refresh() => loadStories();
 
   Future<List<PageItem>> getPages(int storyId) async {
     final rows = await _repo.fetchPages(storyId);

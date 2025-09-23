@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:jejak_cerita_rakyat/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:jejak_cerita_rakyat/features/admin/admin_upload_page.dart';
+import 'package:jejak_cerita_rakyat/features/tts_demo/tts_demo_screen.dart';
 
 class SettingScreen extends StatelessWidget {
   const SettingScreen({super.key});
@@ -15,12 +17,18 @@ class SettingScreen extends StatelessWidget {
           child: Column(
             children: [
               Container(
-                padding: EdgeInsets.only(right: 16, left: 16,top: MediaQuery.of(context).size.height * 0.02,),
+                padding: EdgeInsets.only(
+                  right: 16,
+                  left: 16,
+                  top: MediaQuery.of(context).size.height * 0.02,
+                ),
                 height: MediaQuery.of(context).size.height * 0.12,
                 decoration: BoxDecoration(
                   border: Border.symmetric(
                     horizontal: BorderSide(
-                      color: Theme.of(context).colorScheme.outline,width: 3 ),
+                      color: Theme.of(context).colorScheme.outline,
+                      width: 3,
+                    ),
                   ),
                 ),
                 child: Row(
@@ -34,6 +42,26 @@ class SettingScreen extends StatelessWidget {
                     Text(
                       'Pengaturan',
                       style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.file_upload_outlined),
+                      tooltip: 'Upload Data Cerita (JSON)',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminUploadPage(),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.record_voice_over),
+                      tooltip: 'TTS Demo',
+                      onPressed: () {
+                        Navigator.of(
+                          context,
+                        ).push(MaterialPageRoute(builder: (_) => const TtsDemoScreen()));
+                      },
                     ),
                   ],
                 ),
@@ -194,7 +222,7 @@ class SettingScreen extends StatelessWidget {
                                       },
                                     ),
                                   ],
-                                )
+                                ),
                               ],
                             ),
                           ),
@@ -204,7 +232,7 @@ class SettingScreen extends StatelessWidget {
                   );
                 },
               ),
-              SizedBox(height: 32,),            
+              SizedBox(height: 32),
             ],
           ),
         ),

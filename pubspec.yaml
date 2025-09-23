@@ -47,6 +47,7 @@ dependencies:
   sqflite: ^2.3.3
   path: ^1.9.0
   path_provider: ^2.1.4
+  file_picker: ^8.0.0
 
   # Text-to-Speech
   flutter_tts: ^4.0.2
@@ -61,7 +62,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
+  flutter_native_splash: ^2.4.0
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -74,7 +75,6 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
@@ -94,6 +94,12 @@ flutter:
       fonts:
         - asset: assets/fonts/OpenDyslexic3-Regular.ttf
 
+flutter_native_splash:
+  color: "#000000"                          # warna latar splash
+  image: assets/images/splash/icon_splash.png    # path gambar (harus ada)
+  android_12:                               # aturan khusus Android 12+
+    color: "#000000"
+    image: assets/images/splash/icon_splash.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

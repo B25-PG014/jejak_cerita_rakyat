@@ -26,7 +26,6 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.black,
         useMaterial3: true,
         textTheme: _textTheme(settings),
-
       ),
       routes: {
         '/': (ctx) => const SplashScreen(),
@@ -72,5 +71,4 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
-
 }
