@@ -54,12 +54,18 @@ class StoryProvider extends ChangeNotifier {
 
   StoryRepository _repo;
   List<StoryItem> _stories = [];
+  List<StoryItem> _searchResults = [];
+  bool _isSearch = false;
   bool _loading = false;
   String? _error;
+  String? _searchError;
 
   List<StoryItem> get stories => _stories;
+  List<StoryItem> get searchResults => _searchResults;
   bool get isLoading => _loading;
+  bool get isSearch => _isSearch;
   String? get error => _error;
+  String? get searchError => _searchError;
 
   void attachRepo(StoryRepository repo) {
     _repo = repo;
@@ -90,19 +96,24 @@ class StoryProvider extends ChangeNotifier {
     return rows.map(PageItem.fromMap).toList();
   }
 
-  Future<List<StoryItem>> search(String query) async {
-    final rows = await _repo.searchStories(query);
-    return rows
-        .map(
-          (e) => StoryItem(
-            id: e['id'] as int,
-            slug: e['slug']?.toString() ?? '',
-            title: e['title']?.toString() ?? '',
-            synopsis: e['synopsis']?.toString(),
-            coverAsset: e['cover_asset']?.toString() ?? '',
-            pageCount: (e['page_count'] as num?)?.toInt() ?? 0,
-          ),
-        )
-        .toList();
+  Future<void> setSearchMode() async {
+    _isSearch = !_isSearch;
+    if(!_isSearch) {
+      _searchResults = [];
+      _searchError = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> search(String query) async {
+    try {
+      final rows = await _repo.searchStories(query);
+      _searchResults = rows.map((e) => StoryItem.fromMap(e)).toList();
+      notifyListeners();
+    } catch (e) {
+      _searchError = e.toString();
+    } finally {
+      notifyListeners();
+    }
   }
 }

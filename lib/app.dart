@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jejak_cerita_rakyat/features/detail/detail_screen.dart';
 import 'package:jejak_cerita_rakyat/features/home/home_screen.dart';
 import 'package:jejak_cerita_rakyat/features/settings/setting_screen.dart';
 import 'package:jejak_cerita_rakyat/features/splash/splash_screen.dart';
@@ -16,21 +17,36 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       themeMode: settings.themeMode,
       theme: ThemeData(
-        brightness: Brightness.light,
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ButtonStyle(
+            padding: WidgetStatePropertyAll(EdgeInsets.only(left: 8, right: 8, top: 2, bottom: 2)),
+            backgroundColor: WidgetStatePropertyAll(Colors.blueAccent.shade400),
+            foregroundColor: WidgetStatePropertyAll(Colors.white),
+          )
+        ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
         textTheme: _textTheme(settings),
+        colorScheme: _colorScheme(settings)
       ),
       darkTheme: ThemeData(
-        brightness: Brightness.dark,
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ButtonStyle(
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.only(left: 8, right: 8, top: 2, bottom: 2),
+            ),
+            backgroundColor: WidgetStatePropertyAll(Colors.blueAccent.shade400),
+            foregroundColor: WidgetStatePropertyAll(Colors.white),
+          ),
+        ),
         scaffoldBackgroundColor: Colors.black,
         useMaterial3: true,
         textTheme: _textTheme(settings),
+        colorScheme: _colorScheme(settings)
       ),
       routes: {
         '/': (ctx) => const SplashScreen(),
         '/home': (ctx) => const HomeScreen(),
-        // '/detail': (ctx) => DetailScreen(),
         '/settings': (ctx) => const SettingScreen(),
       },
     );
@@ -47,9 +63,14 @@ class MyApp extends StatelessWidget {
         fontSize: 20 * s.textScale,
         fontWeight: FontWeight.bold,
       ),
+      headlineMedium: TextStyle(
+        fontFamily: s.fontFamily,
+        fontSize: 28 * s.textScale,
+        fontWeight: FontWeight.bold,
+      ),
       titleLarge: TextStyle(
         fontFamily: s.fontFamily,
-        fontSize: 18 * s.textScale,
+        fontSize: 26 * s.textScale,
         fontWeight: FontWeight.w600,
       ),
       bodyLarge: TextStyle(
@@ -71,4 +92,23 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
+
+  ColorScheme _colorScheme(SettingsProvider s){
+    return ColorScheme(
+      brightness: s.themeMode == ThemeMode.light ? Brightness.light : Brightness.dark,
+      primary: Colors.redAccent,
+      onPrimary: Colors.white,
+      secondary: Colors.blueAccent,
+      onSecondary: Colors.white,
+      tertiary: Colors.amberAccent,
+      onTertiary: Colors.black,
+      error: Colors.red.shade500,
+      onError: Colors.black,
+      surface: s.themeMode == ThemeMode.light ? Colors.white : Colors.black,
+      onSurface: s.themeMode == ThemeMode.light ? Colors.black : Colors.white,
+      outline: s.themeMode == ThemeMode.light ? Colors.black : Colors.white,
+      
+    );
+  }
+
 }

@@ -87,6 +87,9 @@ class TtsProvider extends ChangeNotifier {
 
   Future<void> speak(String text) async {
     await _service.speak(text);
+    _speaking = true;
+    _paused = false;
+    notifyListeners();
   }
 
   Future<void> stop() async {
@@ -99,6 +102,7 @@ class TtsProvider extends ChangeNotifier {
   Future<void> pause() async {
     await _service.pause();
     _paused = true;
+    _speaking = false;
     notifyListeners();
   }
 }
