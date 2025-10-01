@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:jejak_cerita_rakyat/features/detail/detail_screen.dart';
 import 'package:jejak_cerita_rakyat/features/home/home_screen.dart';
+import 'package:jejak_cerita_rakyat/features/library/library_screen.dart';
 import 'package:jejak_cerita_rakyat/features/settings/setting_screen.dart';
 import 'package:jejak_cerita_rakyat/features/splash/splash_screen.dart';
 import 'package:provider/provider.dart';
@@ -48,6 +49,7 @@ class MyApp extends StatelessWidget {
         '/': (ctx) => const SplashScreen(),
         '/home': (ctx) => const HomeScreen(),
         '/settings': (ctx) => const SettingScreen(),
+        '/library': (ctx) => const LibraryScreen()
       },
     );
   }

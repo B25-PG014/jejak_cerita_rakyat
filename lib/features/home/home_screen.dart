@@ -13,7 +13,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
       body: Container(
         color: Theme.of(context).scaffoldBackgroundColor,
@@ -81,6 +80,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushNamed('/library');
+                      },
+                      child: Text(
+                        'See All...',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ),
                   Consumer<StoryProvider>(
                     builder: (context, value, child) {
                       if (value.isLoading) {
@@ -102,11 +115,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       return GridView.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 3,
-                          crossAxisSpacing: 10,
+                          crossAxisSpacing: 5,
                           mainAxisSpacing: 10,
                           childAspectRatio: 2 / 3,
                         ),
-                        itemCount: value.stories.length,
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        itemCount: value.stories.take(6).length,
                         shrinkWrap: true,
                         physics: NeverScrollableScrollPhysics(),
                         itemBuilder: (context, index) {
@@ -122,74 +136,81 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Consumer<StoryProvider>(
                 builder: (context, value, child) {
                   if (value.isSearch) {
-                    return  Container(
-                        height: double.infinity,
-                        color: Theme.of(context).cardColor.withAlpha(125),
-                        child: Center(
-                          child: Container(
-                            padding: EdgeInsets.only(top: 16, left: 16, right: 16),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).scaffoldBackgroundColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                        decoration: InputDecoration(
-                                          labelText: 'Cari Cerita',
-                                          border: OutlineInputBorder(),
-                                        ),
-                                        onSubmitted: (query) {
-                                          value.search(query);
-                                        },
+                    return Container(
+                      height: double.infinity,
+                      color: Theme.of(context).cardColor.withAlpha(125),
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.only(
+                            top: 16,
+                            left: 16,
+                            right: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      decoration: InputDecoration(
+                                        labelText: 'Cari Cerita',
+                                        border: OutlineInputBorder(),
                                       ),
-                                    ),
-                                    IconButton(
-                                      onPressed: () {
-                                        value.setSearchMode();
+                                      onSubmitted: (query) {
+                                        value.search(query);
                                       },
-                                      icon: Icon(Icons.close),
                                     ),
-                                  ],
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      value.setSearchMode();
+                                    },
+                                    icon: Icon(Icons.close),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 16),
+                              Divider(),
+                              if (value.searchError != null)
+                                Text(
+                                  "Error: ${value.searchError}",
+                                  style: TextStyle(color: Colors.red),
                                 ),
-                                SizedBox(height: 16),
-                                Divider(),
-                                if (value.searchError != null)
-                                  Text(
-                                    "Error: ${value.searchError}",
-                                    style: TextStyle(color: Colors.red),
+                              if (value.searchResults.isNotEmpty)
+                                SizedBox(
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.6,
+                                  child: ListView.builder(
+                                    itemCount: value.searchResults.length,
+                                    itemBuilder: (context, index) {
+                                      final story = value.searchResults[index];
+                                      return ListTile(
+                                        title: Text(story.title),
+                                        onTap: () {
+                                          Navigator.of(context).pushNamed(
+                                            '/story',
+                                            arguments: story.id,
+                                          );
+                                        },
+                                      );
+                                    },
                                   ),
-                                if (value.searchResults.isNotEmpty)
-                                  SizedBox(
-                                    height: MediaQuery.of(context).size.height * 0.6,
-                                    child: ListView.builder(
-                                      itemCount: value.searchResults.length,
-                                      itemBuilder: (context, index) {
-                                        final story = value.searchResults[index];
-                                        return ListTile(
-                                          title: Text(story.title),
-                                          onTap: () {
-                                            Navigator.of(context).pushNamed('/story', arguments: story.id);
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ),
-                              ],
-                            ),
+                                ),
+                            ],
                           ),
                         ),
-                    
+                      ),
                     );
                   }
                   return SizedBox.shrink();
                 },
               ),
-            )
+            ),
           ],
         ),
       ),

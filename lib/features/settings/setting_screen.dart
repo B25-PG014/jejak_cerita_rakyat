@@ -117,7 +117,7 @@ class SettingScreen extends StatelessWidget {
                                     ),
                                     Switch(
                                       value:
-                                          settings.themeMode == ThemeMode.dark,
+                                          settings.themeMode == ThemeMode.dark ? true : false,
                                       onChanged: (value) {
                                         settings.setThemeMode(
                                           value

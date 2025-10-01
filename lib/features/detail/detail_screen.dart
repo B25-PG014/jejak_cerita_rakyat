@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jejak_cerita_rakyat/features/reader/reader_screen.dart';
 import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
 import 'package:jejak_cerita_rakyat/providers/tts_provider.dart';
 import 'package:provider/provider.dart';
@@ -44,12 +45,14 @@ class DetailScreen extends StatelessWidget {
                       },
                     ),
                     Positioned(
-                      top:8,
+                      top: 8,
                       left: 8,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface.withAlpha(75),
-                          borderRadius: BorderRadius.circular(8)
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: IconButton(
                           icon: const Icon(Icons.arrow_back),
@@ -89,14 +92,21 @@ class DetailScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => ReaderScreen(id: data.id),
+                              ),
+                            );
+                          },
                           child: Row(
                             children: [
                               Icon(Icons.menu_book_sharp),
                               SizedBox(width: 5),
                               Text(
                                 "Mulai Membaca",
-                                style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Colors.white),
+                                style: Theme.of(context).textTheme.bodySmall!
+                                    .copyWith(color: Colors.white),
                                 maxLines: 1,
                                 overflow: TextOverflow.visible,
                                 softWrap: true,
@@ -116,13 +126,19 @@ class DetailScreen extends StatelessWidget {
                               },
                               child: Row(
                                 children: [
-                                  Icon(value.speaking ? Icons.stop : Icons.play_arrow),
+                                  Icon(
+                                    value.speaking
+                                        ? Icons.stop
+                                        : Icons.play_arrow,
+                                  ),
                                   SizedBox(width: 5),
                                   Text(
-                                    value.speaking ? "Berhenti Dengarkan" : "Dengarkan Narasi",
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall!
+                                    value.speaking
+                                        ? "Berhenti Dengarkan"
+                                        : "Dengarkan Narasi",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall!
                                         .copyWith(color: Colors.white),
                                     maxLines: 1,
                                     overflow: TextOverflow.visible,

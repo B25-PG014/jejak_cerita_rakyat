@@ -89,11 +89,13 @@ class TtsProvider extends ChangeNotifier {
     await _service.speak(text);
     _speaking = true;
     _paused = false;
+    _ready = false;
     notifyListeners();
   }
 
   Future<void> stop() async {
     await _service.stop();
+    _ready = true;
     _speaking = false;
     _paused = false;
     notifyListeners();
@@ -103,6 +105,7 @@ class TtsProvider extends ChangeNotifier {
     await _service.pause();
     _paused = true;
     _speaking = false;
+    _ready = false;
     notifyListeners();
   }
 }
