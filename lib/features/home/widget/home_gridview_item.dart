@@ -10,7 +10,9 @@ class HomeGridviewItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).push(MaterialPageRoute(builder: (context) => DetailScreen(data: data),));
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => DetailScreen(data: data)),
+        );
       },
       child: Container(
         decoration: BoxDecoration(

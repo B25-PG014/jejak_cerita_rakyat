@@ -1,93 +1,267 @@
 import 'package:flutter/material.dart';
-import 'package:jejak_cerita_rakyat/features/library/widgets/library_gridview.dart';
-import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
 import 'package:provider/provider.dart';
 
-class LibraryScreen extends StatelessWidget {
+import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
+import 'package:jejak_cerita_rakyat/features/detail/detail_screen.dart';
+import 'widgets/book_row_card_basic.dart';
+
+class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
   @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
+  bool _showSearch = false;
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final sp = context.read<StoryProvider>();
+      if (!sp.isLoading && sp.stories.isEmpty) {
+        await sp.loadStories();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.only(left: 16, right: 16, top: 32),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outline,
-                    width: 5,
+      body: Stack(
+        children: [
+          // background seperti Home
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/splash/splash.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              opacity: const AlwaysStoppedAnimation(0.35),
+            ),
+          ),
+
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: Column(
+                children: [
+                  // ================== HEADER "chip" menyatu ==================
+                  Consumer<StoryProvider>(
+                    builder: (context, sp, _) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.surface.withOpacity(0.75),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.12),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
+                              spreadRadius: -4,
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.15),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // tombol back
+                            _RoundIconButton(
+                              icon: Icons.arrow_back,
+                              tooltip: 'Kembali',
+                              onTap: () => Navigator.of(context).pop(),
+                            ),
+                            const SizedBox(width: 12),
+                            // judul di tengah
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Library Cerita',
+                                    style: theme.textTheme.titleLarge,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${sp.stories.length} cerita',
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(color: cs.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // tombol search
+                            _RoundIconButton(
+                              icon: _showSearch ? Icons.close : Icons.search,
+                              tooltip: _showSearch ? 'Tutup Pencarian' : 'Cari',
+                              onTap: () {
+                                setState(() => _showSearch = !_showSearch);
+                                if (!_showSearch) _searchCtrl.clear();
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    IconButton.outlined(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      icon: Icon(Icons.arrow_back),
-                    ),
-                    Text(
-                      'Library Cerita',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    IconButton.outlined(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      icon: Icon(Icons.search_outlined),
+
+                  // ===========================================================
+                  if (_showSearch) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _searchCtrl,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Cari judul atau sinopsis…',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: cs.surface.withOpacity(.75),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 12,
+                        ),
+                      ),
                     ),
                   ],
-                ),
-              ),
-              SizedBox(height: 16),
-              Consumer<StoryProvider>(
-                builder: (context, value, child) {
-                  if (value.isLoading) {
-                    return Center(child: CircularProgressIndicator());
-                  }
-                  if (value.error != null) {
-                    // Tampilkan snackbar
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Error: ${value.error}")),
-                      );
-                    });
-                  }
-                  if (value.stories.isEmpty) {
-                    return Center(
-                      child: Text("Sayang Sekali Tidak Ada Cerita Rakyat"),
-                    );
-                  }
-                  return GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 5,
-                      mainAxisSpacing: 5,
-                      childAspectRatio: 2 / 3,
+
+                  const SizedBox(height: 12),
+
+                  // ========================= LIST =========================
+                  Expanded(
+                    child: Consumer<StoryProvider>(
+                      builder: (context, sp, _) {
+                        if (sp.isLoading) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        // filter
+                        final q = _searchCtrl.text.trim().toLowerCase();
+                        final items = q.isEmpty
+                            ? sp.stories
+                            : sp.stories.where((s) {
+                                final t = s.title.toLowerCase();
+                                final syn = (s.synopsis ?? '').toLowerCase();
+                                return t.contains(q) || syn.contains(q);
+                              }).toList();
+
+                        if (items.isEmpty) {
+                          return const Center(child: Text('Tidak ada cerita.'));
+                        }
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, i) {
+                            final s = items[i];
+
+                            // Arahkan ke DetailScreen (bukan langsung reader)
+                            void goDetail() {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => DetailScreen(data: s),
+                                ),
+                              );
+                            }
+
+                            try {
+                              return BookRowCardBasic(
+                                coverAsset: s.coverAsset,
+                                title: s.title,
+                                synopsis: s.synopsis ?? '-',
+                                // seluruh kartu -> Detail dulu
+                                onTap: goDetail,
+                                // kalau widget kamu punya onTapImage / onCoverTap,
+                                // aktifkan juga agar klik gambar dan kartu sama:
+                                // onTapImage: goDetail,
+                              );
+                            } catch (_) {
+                              // fallback sederhana
+                              return ListTile(
+                                leading: const Icon(Icons.menu_book_rounded),
+                                title: Text(s.title),
+                                subtitle: Text(s.synopsis ?? '-'),
+                                onTap: goDetail,
+                              );
+                            }
+                          },
+                        );
+                      },
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                    itemCount: value.stories.length,
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      return LibraryGridview(data: value.stories[index]);
-                    },
-                  );
-                },
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
+  }
+}
+
+/// Tombol bulat kecil untuk header chip (konsisten gaya Home)
+class _RoundIconButton extends StatelessWidget {
+  const _RoundIconButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final btn = InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: cs.primaryContainer.withOpacity(.9),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, color: cs.onPrimaryContainer),
+      ),
+    );
+
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
   }
 }

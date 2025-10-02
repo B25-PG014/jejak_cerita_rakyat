@@ -36,9 +36,12 @@ dependencies:
   go_router: ^14.0.0
 
   # UI utilitas
-  flutter_svg: ^2.0.10
+  flutter_svg: ^2.0.10+5
   google_fonts: ^6.2.1
   intl: ^0.19.0
+  fluid_action_card: ^1.0.0+5
+  carousel_slider: ^5.0.0
+  badges: ^3.1.2
 
   # Aksesibilitas/penyimpanan preferensi
   shared_preferences: ^2.2.3
@@ -80,10 +83,13 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-  - assets/images/ui/
-  - assets/images/covers/
-  - assets/images/splash/
-  - assets/stories/
+    - assets/images/ui/
+    - assets/images/covers/
+    - assets/images/splash/
+    - assets/images/backgrounds/
+    - assets/stories/
+    - assets/svg/
+    - assets/stories/malin-kundang/
   fonts:
     - family: Atkinson
       fonts:

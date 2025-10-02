@@ -22,16 +22,23 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      systemNavigationBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+    );
 
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
-    _scale = Tween<double>(begin: 1.04, end: 1.0)
-        .animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _scale = Tween<double>(
+      begin: 1.04,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
     _fade = CurvedAnimation(parent: _c, curve: Curves.easeIn);
     _goNext();
   }
@@ -50,7 +57,10 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   @override
-  void dispose() { _c.dispose(); super.dispose(); }
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +81,9 @@ class _SplashScreenState extends State<SplashScreen>
       child: Scaffold(
         backgroundColor: Colors.black,
         body: MediaQuery.removePadding(
-          context: context, removeTop: true, removeBottom: true,
+          context: context,
+          removeTop: true,
+          removeBottom: true,
           child: AnimatedBuilder(
             animation: _c,
             builder: (context, _) {

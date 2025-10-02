@@ -6,11 +6,12 @@ import 'data/repositories/story_repository.dart';
 import 'providers/settings_provider.dart';
 import 'providers/story_provider.dart';
 import 'providers/reader_provider.dart';
-import 'services/tts_service.dart';
 import 'providers/tts_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PaintingBinding.instance.imageCache.maximumSize = 250; // default 1000
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 80 << 20; // ~60MB
   // Ensure DB ready before runApp (not strictly required, but nice to warmup)
   await AppDatabase.instance.database;
 
@@ -36,9 +37,7 @@ void main() async {
         ChangeNotifierProvider<ReaderProvider>(
           create: (ctx) => ReaderProvider(repo: ctx.read<StoryRepository>()),
         ),
-        ChangeNotifierProvider<TtsProvider>(
-          create: (_) => TtsProvider(TtsService()),
-        ),
+        ChangeNotifierProvider<TtsProvider>(create: (_) => TtsProvider()),
       ],
       child: const MyApp(),
     ),

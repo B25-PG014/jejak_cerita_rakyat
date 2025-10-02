@@ -8,23 +8,74 @@
   "source": "budaya-indonesia.org",
   "age_min": 6,
   "age_max": 10,
-
-  "cover": "assets/images/covers/Malin_cov.png", 
-
-
+  "cover": "assets/stories/malin-kundang/cover.png",
+  "provinces": [
+    { "name": "Sumatera Barat", "x_rel": 0.1516, "y_rel": 0.4248 }
+  ],
   "pages": [
     {
       "page_no": 1,
-      "image": "p1.png",  
-      "text": "Angasa terbang di atas pegunungan biru...",
-      "tts_ssml": "<speak><p>Angasa <emphasis>terbang</emphasis> di atas pegunungan biru...</p></speak>",
-      "duration_ms": 0
+      "image": "p1.png",
+      "paragraphs": [
+        "Di sebuah desa kecil di tepi pantai Sumatra, hiduplah seorang anak laki-laki bernama Malin Kundang bersama ayah dan ibunya. Mereka hidup sederhana sebagai keluarga nelayan.",
+        "Suatu pagi, ayah Malin berkata dengan suara tegas namun lembut, 'Malin… Ibu… aku harus berlayar jauh mencari nafkah. Doakan aku cepat kembali ya.' Ibu Malin tersenyum tipis, menahan sedih di hatinya.",
+        "'Hati-hati… jangan lama-lama ya. Kami akan menunggu.' Hari demi hari pun berlalu. Bulan berganti tahun. Namun sang ayah tak kunjung kembali."
+      ]
     },
     {
       "page_no": 2,
       "image": "p2.png",
-      "text": "Ia bertemu burung garuda yang bijak...",
-      "tts_ssml": "<speak><p>Ia bertemu burung <say-as interpret-as='characters'>G</say-as>aruda...</p></speak>"
+      "paragraphs": [
+        "Waktu berjalan… Malin tumbuh menjadi anak yang cerdas, meski kadang nakal. Ia sering mengejar ayam di halaman rumah. 'Tangkap! … Tangkap!' teriak Malin sambil tertawa keras, membuat ayam-ayam berlarian panik.",
+        "Tiba-tiba, bruk! ia tersandung batu. “Aduuuhhh!” teriaknya sambil meringis kesakitan. Lengannya terluka, dan bekas itu tidak pernah hilang."
+      ]
+    },
+    {
+      "page_no": 3,
+      "image": "p3.png",
+      "paragraphs": [
+        "Tahun demi tahun berlalu, Malin pun tumbuh dewasa. Ia melihat ibunya bekerja keras seorang diri. Hatinya terenyuh.",
+        "'Bu… biarlah aku merantau mencari rezeki. Aku ingin membuatmu bahagia,' katanya penuh tekad. Ibunya menggeleng pelan. 'Ibu takut kehilanganmu, Nak.'",
+        "Tapi Malin terus meyakinkan dengan penuh semangat. Akhirnya, dengan air mata, ibunya berbisik, 'Kalau begitu pergilah… tapi jangan pernah lupakan Ibu dan kampungmu.'",
+        "Dengan langkah berat, Malin naik ke kapal besar dan berlayar jauh meninggalkan desa."
+      ]
+    },
+    {
+      "page_no": 4,
+      "image": "p4.png",
+      "paragraphs": [
+        "Di atas kapal, Malin belajar menjadi pelaut. Namun tiba-tiba, segerombolan bajak laut muncul!",
+        "'Serang! Ambil semua harta!' teriak mereka sambil mengayunkan pedang. Malin ketakutan, ia segera bersembunyi sambil berdoa, 'Semoga aku selamat… semoga aku selamat…'",
+        "Ia beruntung lolos dari bahaya. Tak lama kemudian, ia terdampar di sebuah desa yang subur. Dengan kerja keras, Malin perlahan-lahan menjadi kaya raya. Ia memiliki kapal-kapal dagang megah yang berlayar ke berbagai negeri."
+      ]
+    },
+    {
+      "page_no": 5,
+      "image": "p5.png",
+      "paragraphs": [
+        "Kabar tentang Malin yang kaya raya sampai ke telinga ibunya. Setiap hari, sang ibu menunggu penuh harap di dermaga.",
+        "Hingga suatu hari… sebuah kapal besar merapat. Ibu tua itu berteriak bahagia, 'Itu Malin! Anakku pulang!'",
+        "Dengan hati penuh rindu, ia berlari memeluk Malin. 'Malin Kundang, anakku… mengapa lama sekali kau pergi?'",
+        "Namun Malin malah mendorong ibunya menjauh. 'Pergi! Wanita miskin, jangan mengaku ibuku!'",
+        "Istrinya menatap bingung. 'Apa benar dia ibumu?' tanyanya pelan. Malin menjawab dingin, 'Tidak. Dia hanya seorang pengemis.'"
+      ]
+    },
+    {
+      "page_no": 6,
+      "image": "p6.png",
+      "paragraphs": [
+        "Hati sang ibu hancur berkeping-keping. Ia menengadah ke langit dengan air mata, 'Ya Tuhan… jika benar dia anakku, kutuklah dia menjadi batu karena durhaka!'",
+        "Tiba-tiba… langit menggelap. Ombak besar mengguncang lautan. Kapal Malin hancur diterpa badai.",
+        "'Amppuun, Ibu! Amppuuunnnn!' teriak Malin putus asa sambil bersujud. Namun tubuhnya perlahan menjadi kaku… dan akhirnya berubah menjadi batu karang di tepi laut."
+      ]
+    },
+    {
+      "page_no": 7,
+      "image": "p7.png",
+      "paragraphs": [
+        "Sejak hari itu, batu Malin yang bersujud tetap berada di tepi pantai Air Manis. Orang-orang sering datang melihatnya, dan mereka merenung.",
+        "Cerita tentang Malin Kundang pun terus diceritakan turun-temurun. Dari kisah ini, kita diajarkan untuk selalu menyayangi orang tua, tidak sombong, dan tidak melupakan asal-usul kita."
+      ]
     }
   ]
 }

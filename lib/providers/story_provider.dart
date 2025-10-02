@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart';
 import '../data/repositories/story_repository.dart';
 
+/// ====================
+/// Data models
+/// ====================
+
 class StoryItem {
   final int id;
   final String slug;
@@ -49,10 +53,51 @@ class PageItem {
   );
 }
 
+/// Pin provinsi (untuk agregat & per-story)
+class ProvincePin {
+  final int id; // province_id (agregat) / id (per-story)
+  final String name; // province_name / name
+  final double xRel; // 0..1
+  final double yRel; // 0..1
+  final int storyCount; // agregat: >=1, per-story: 1
+
+  ProvincePin({
+    required this.id,
+    required this.name,
+    required this.xRel,
+    required this.yRel,
+    required this.storyCount,
+  });
+
+  /// Dari view agregat v_province_counts
+  factory ProvincePin.fromMap(Map<String, dynamic> m) => ProvincePin(
+    id: m['province_id'] as int,
+    name: m['province_name'] as String,
+    xRel: (m['x_rel'] as num).toDouble(),
+    yRel: (m['y_rel'] as num).toDouble(),
+    storyCount: (m['story_count'] as num?)?.toInt() ?? 0,
+  );
+
+  /// Dari query per-story (SELECT p.id, p.name, p.x_rel, p.y_rel ...)
+  factory ProvincePin.fromStoryRow(Map<String, dynamic> r) => ProvincePin(
+    id: r['id'] as int,
+    name: r['name'] as String,
+    xRel: (r['x_rel'] as num?)?.toDouble() ?? .5,
+    yRel: (r['y_rel'] as num?)?.toDouble() ?? .5,
+    storyCount: 1,
+  );
+}
+
+/// ====================
+/// Provider
+/// ====================
+
 class StoryProvider extends ChangeNotifier {
   StoryProvider({required StoryRepository repo}) : _repo = repo;
 
   StoryRepository _repo;
+
+  // ---- Stories & search ----
   List<StoryItem> _stories = [];
   List<StoryItem> _searchResults = [];
   bool _isSearch = false;
@@ -71,14 +116,18 @@ class StoryProvider extends ChangeNotifier {
     _repo = repo;
   }
 
-  /// Load the list from SQLite and notify listeners.
+  /// Refresh semua (cerita + pin agregat). Useful setelah import JSON.
+  Future<void> reloadAll() async {
+    await Future.wait([loadStories(), loadProvincePins()]);
+  }
+
+  /// Load list cerita dari SQLite (v_story_with_counts)
   Future<void> loadStories() async {
     _loading = true;
     _error = null;
     notifyListeners();
     try {
-      final rows = await _repo
-          .fetchStories(); // SELECT from v_story_with_counts
+      final rows = await _repo.fetchStories();
       _stories = rows.map((e) => StoryItem.fromMap(e)).toList();
     } catch (e) {
       _error = e.toString();
@@ -88,7 +137,7 @@ class StoryProvider extends ChangeNotifier {
     }
   }
 
-  /// Public alias you can call after importing JSON to refresh the Home grid.
+  /// Refresh (alias)
   Future<void> refresh() => loadStories();
 
   Future<List<PageItem>> getPages(int storyId) async {
@@ -98,7 +147,7 @@ class StoryProvider extends ChangeNotifier {
 
   Future<void> setSearchMode() async {
     _isSearch = !_isSearch;
-    if(!_isSearch) {
+    if (!_isSearch) {
       _searchResults = [];
       _searchError = null;
     }
@@ -109,11 +158,47 @@ class StoryProvider extends ChangeNotifier {
     try {
       final rows = await _repo.searchStories(query);
       _searchResults = rows.map((e) => StoryItem.fromMap(e)).toList();
-      notifyListeners();
     } catch (e) {
       _searchError = e.toString();
     } finally {
       notifyListeners();
     }
+  }
+
+  // ====================
+  // Peta / Provinsi
+  // ====================
+
+  List<ProvincePin> _pins = [];
+  List<ProvincePin> get pins => _pins;
+
+  /// Muat agregat pin dari v_province_counts
+  Future<void> loadProvincePins() async {
+    final rows = await _repo.fetchProvinceCounts();
+    _pins = rows.map((e) => ProvincePin.fromMap(e)).toList();
+    notifyListeners();
+  }
+
+  /// Pin untuk satu cerita (dipakai di Home - hanya show yang disorot)
+  Future<List<ProvincePin>> pinsForStoryId(int storyId) async {
+    final rows = await _repo.fetchProvincesForStory(storyId);
+    return rows
+        .map((r) => ProvincePin.fromStoryRow(Map<String, dynamic>.from(r)))
+        .toList();
+  }
+
+  /// Ambil daftar cerita per provinceId (popup)
+  Future<List<StoryItem>> storiesByProvinceId(int provinceId) async {
+    final rows = await _repo.fetchStoriesByProvinceId(provinceId);
+    return rows.map((e) => StoryItem.fromMap(e)).toList();
+  }
+
+  /// Seed mapping (opsional, untuk admin)
+  Future<void> mapStoryToProvince({
+    required int storyId,
+    required int provinceId,
+  }) async {
+    await _repo.upsertStoryProvince(storyId: storyId, provinceId: provinceId);
+    await loadProvincePins();
   }
 }

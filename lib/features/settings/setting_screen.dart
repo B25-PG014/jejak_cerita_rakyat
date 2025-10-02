@@ -1,6 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:jejak_cerita_rakyat/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
+
+import 'package:jejak_cerita_rakyat/providers/settings_provider.dart';
 import 'package:jejak_cerita_rakyat/features/admin/admin_upload_page.dart';
 import 'package:jejak_cerita_rakyat/features/tts_demo/tts_demo_screen.dart';
 
@@ -9,233 +11,557 @@ class SettingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    List<String> listFont = ['Atkinson', 'OpenDyslexic'];
+    final cs = Theme.of(context).colorScheme;
+    const listFont = ['Atkinson', 'OpenDyslexic'];
+
     return Scaffold(
-      body: Container(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              Container(
-                padding: EdgeInsets.only(
-                  right: 16,
-                  left: 16,
-                  top: MediaQuery.of(context).size.height * 0.02,
-                ),
-                height: MediaQuery.of(context).size.height * 0.12,
-                decoration: BoxDecoration(
-                  border: Border.symmetric(
-                    horizontal: BorderSide(
-                      color: Theme.of(context).colorScheme.outline,
-                      width: 3,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      icon: Icon(Icons.arrow_back),
-                    ),
-                    Text(
-                      'Pengaturan',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.file_upload_outlined),
-                      tooltip: 'Upload Data Cerita (JSON)',
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const AdminUploadPage(),
+      backgroundColor: cs.surface,
+      body: Stack(
+        children: [
+          // background biar nyatu dengan home/detail
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/splash/splash.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              opacity: const AlwaysStoppedAnimation(0.35),
+            ),
+          ),
+
+          SafeArea(
+            child: Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return CustomScrollView(
+                  slivers: [
+                    // ===== Header glass =====
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                        child: _GlassBar(
+                          title: 'Pengaturan',
+                          leading: _GlassCircleButton(
+                            icon: Icons.arrow_back_rounded,
+                            onTap: () => Navigator.of(context).pop(),
+                          ),
+                          actions: [
+                            _GlassCircleButton(
+                              icon: Icons.file_upload_outlined,
+                              tooltip: 'Upload Data Cerita (JSON)',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AdminUploadPage(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _GlassCircleButton(
+                              icon: Icons.record_voice_over_rounded,
+                              tooltip: 'TTS Demo',
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const TtsDemoScreen(),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.record_voice_over),
-                      tooltip: 'TTS Demo',
-                      onPressed: () {
-                        Navigator.of(
-                          context,
-                        ).push(MaterialPageRoute(builder: (_) => const TtsDemoScreen()));
-                      },
+
+                    // ===== Section: Tampilan =====
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _LabeledGlassCard(
+                          label: 'Tampilan',
+                          child: Column(
+                            children: [
+                              // Mode gelap
+                              _SettingRow(
+                                label: 'Mode Gelap',
+                                trailing: Switch(
+                                  value: settings.themeMode == ThemeMode.dark,
+                                  onChanged: (v) => settings.setThemeMode(
+                                    v ? ThemeMode.dark : ThemeMode.light,
+                                  ),
+                                ),
+                              ),
+                              const Divider(height: 24, thickness: 0.6),
+
+                              // Jenis huruf
+                              _SettingRow(
+                                label: 'Jenis Huruf',
+                                trailing: Wrap(
+                                  spacing: 8,
+                                  children: listFont.map((f) {
+                                    final selected = settings.fontFamily == f;
+                                    return ChoiceChip(
+                                      label: Text(f),
+                                      selected: selected,
+                                      onSelected: (_) =>
+                                          settings.setFontFamily(f),
+                                      labelStyle: TextStyle(
+                                        fontWeight: selected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              const Divider(height: 24, thickness: 0.6),
+
+                              // Skala huruf
+                              _SettingRow(
+                                label: 'Skala Huruf',
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _MiniGlassIcon(
+                                      icon: Icons.remove,
+                                      onTap: () {
+                                        final v = (settings.textScale - 0.1)
+                                            .clamp(0.8, 1.6);
+                                        settings.setTextScale(
+                                          double.parse(v.toStringAsFixed(1)),
+                                        );
+                                      },
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                      ),
+                                      child: Text(
+                                        settings.textScale.toStringAsFixed(1),
+                                      ),
+                                    ),
+                                    _MiniGlassIcon(
+                                      icon: Icons.add,
+                                      onTap: () {
+                                        final v = (settings.textScale + 0.1)
+                                            .clamp(0.8, 1.6);
+                                        settings.setTextScale(
+                                          double.parse(v.toStringAsFixed(1)),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Slider(
+                                value: settings.textScale,
+                                onChanged: (v) => settings.setTextScale(
+                                  double.parse(v.toStringAsFixed(1)),
+                                ),
+                                min: 0.8,
+                                max: 1.6,
+                                divisions: 8,
+                              ),
+
+                              // Preview
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: cs.surfaceVariant.withOpacity(.25),
+                                ),
+                                child: Text(
+                                  'Contoh pratayang — “Jejak Cerita Rakyat”. '
+                                  'Ubah jenis & skala huruf untuk melihat perbedaan tampilan.',
+                                  textScaleFactor: settings.textScale,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ===== Section: Alat & Bantuan =====
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: _LabeledGlassCard(
+                          label: 'Alat & Bantuan',
+                          child: Column(
+                            children: [
+                              _LinkRow(
+                                icon: Icons.info_outline_rounded,
+                                label: 'Tentang Aplikasi',
+                                onTap: () => showAboutDialog(
+                                  context: context,
+                                  applicationName: 'Jejak Cerita Rakyat',
+                                  applicationVersion: 'v1.0',
+                                  children: const [
+                                    Text(
+                                      'Koleksi cerita rakyat Nusantara dengan peta interaktif dan narasi suara.',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _LinkRow(
+                                icon: Icons.restore_rounded,
+                                label: 'Reset ke Default',
+                                onTap: () {
+                                  settings
+                                    ..setThemeMode(ThemeMode.system)
+                                    ..setFontFamily(listFont.first)
+                                    ..setTextScale(1.0);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Pengaturan dikembalikan ke default',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ===== Fill remaining to avoid big empty space =====
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        child: Column(
+                          children: [
+                            const Spacer(),
+                            _Footer(cs: cs),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/* ========================= Shared widgets ========================= */
+
+class _GlassBar extends StatelessWidget {
+  const _GlassBar({required this.title, this.leading, this.actions});
+  final String title;
+  final Widget? leading;
+  final List<Widget>? actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.18),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: cs.surface.withOpacity(.65),
+              border: Border.all(
+                color: Colors.white.withOpacity(.22),
+                width: 1.1,
+              ),
+            ),
+            child: Row(
+              children: [
+                if (leading != null) leading!,
+                if (leading != null) const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
-              ),
-              SizedBox(height: 30),
-              Consumer<SettingsProvider>(
-                builder: (context, settings, child) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outline,
-                          width: 3,
-                        ),
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            top: -10,
-                            left: 12,
-                            child: Container(
-                              color: Theme.of(context).scaffoldBackgroundColor,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              child: Text(
-                                "Tampilan",
-                                style: Theme.of(context).textTheme.labelLarge,
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Mode Gelap
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Mode Gelap",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelMedium!
-                                          .copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                    Switch(
-                                      value:
-                                          settings.themeMode == ThemeMode.dark ? true : false,
-                                      onChanged: (value) {
-                                        settings.setThemeMode(
-                                          value
-                                              ? ThemeMode.dark
-                                              : ThemeMode.light,
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-
-                                // Jenis Huruf
-                                Text(
-                                  "Jenis Huruf",
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelMedium!
-                                      .copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    IconButton(
-                                      onPressed: () {
-                                        int index = listFont.indexOf(
-                                          settings.fontFamily,
-                                        );
-                                        index -= 1;
-                                        if (index < 0)
-                                          index = listFont.length - 1;
-                                        settings.setFontFamily(listFont[index]);
-                                      },
-                                      icon: const Icon(Icons.arrow_back_ios),
-                                    ),
-                                    Text(
-                                      settings.fontFamily,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.labelMedium,
-                                    ),
-                                    IconButton(
-                                      onPressed: () {
-                                        int index = listFont.indexOf(
-                                          settings.fontFamily,
-                                        );
-                                        index += 1;
-                                        if (index >= listFont.length) index = 0;
-                                        settings.setFontFamily(listFont[index]);
-                                      },
-                                      icon: const Icon(Icons.arrow_forward_ios),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-
-                                // Skala Huruf
-                                Text(
-                                  "Skala Huruf",
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelMedium!
-                                      .copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove),
-                                      onPressed: () {
-                                        double newValue =
-                                            (settings.textScale - 0.1).clamp(
-                                              0.8,
-                                              1.6,
-                                            );
-                                        settings.setTextScale(
-                                          double.parse(
-                                            newValue.toStringAsFixed(1),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    Text(
-                                      settings.textScale.toStringAsFixed(1),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.labelMedium,
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.add),
-                                      onPressed: () {
-                                        double newValue =
-                                            (settings.textScale + 0.1).clamp(
-                                              0.8,
-                                              1.6,
-                                            );
-                                        settings.setTextScale(
-                                          double.parse(
-                                            newValue.toStringAsFixed(1),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-              SizedBox(height: 32),
-            ],
+                const Spacer(),
+                ...?actions,
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Glass card dengan label “melayang” yang TIDAK kepotong.
+/// Menambahkan margin top otomatis saat ada label.
+class _LabeledGlassCard extends StatelessWidget {
+  const _LabeledGlassCard({required this.child, this.label});
+  final Widget child;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasLabel = label != null && label!.isNotEmpty;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // jarak top ekstra untuk label agar tidak terpotong
+        Container(
+          margin: EdgeInsets.only(top: hasLabel ? 14 : 0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.18),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      cs.surface.withOpacity(.75),
+                      cs.surface.withOpacity(.50),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(.20),
+                    width: 1,
+                  ),
+                ),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+        if (hasLabel)
+          Positioned(
+            top: 0,
+            left: 12,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: cs.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.white.withOpacity(.22),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  label!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({required this.label, required this.trailing});
+  final String label;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+          trailing,
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniGlassIcon extends StatelessWidget {
+  const _MiniGlassIcon({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Material(
+          color: cs.surface.withOpacity(.55),
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.white.withOpacity(.22),
+                  width: 1,
+                ),
+              ),
+              child: Icon(icon, size: 18, color: cs.onSurface),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassCircleButton extends StatelessWidget {
+  const _GlassCircleButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final btn = ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Material(
+          color: cs.surface.withOpacity(.55),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Colors.white.withOpacity(.22),
+                  width: 1,
+                ),
+              ),
+              child: Icon(icon, size: 22, color: cs.onSurface),
+            ),
+          ),
+        ),
+      ),
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
+  }
+}
+
+class _LinkRow extends StatelessWidget {
+  const _LinkRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: cs.surface.withOpacity(.45),
+          border: Border.all(color: Colors.white.withOpacity(.18), width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: cs.onSurface),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: cs.onSurface),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Footer extends StatelessWidget {
+  const _Footer({required this.cs});
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: .75,
+      child: Column(
+        children: [
+          Divider(color: cs.onSurface.withOpacity(.2)),
+          const SizedBox(height: 8),
+          Text(
+            'Jejak Cerita Rakyat · v1.0',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: cs.onSurface.withOpacity(.7),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:jejak_cerita_rakyat/features/detail/detail_screen.dart';
 import 'package:jejak_cerita_rakyat/features/home/home_screen.dart';
 import 'package:jejak_cerita_rakyat/features/library/library_screen.dart';
 import 'package:jejak_cerita_rakyat/features/settings/setting_screen.dart';
 import 'package:jejak_cerita_rakyat/features/splash/splash_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/settings_provider.dart';
+import 'package:jejak_cerita_rakyat/features/reader/reader_screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -20,15 +20,26 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ButtonStyle(
-            padding: WidgetStatePropertyAll(EdgeInsets.only(left: 8, right: 8, top: 2, bottom: 2)),
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.only(left: 8, right: 8, top: 2, bottom: 2),
+            ),
             backgroundColor: WidgetStatePropertyAll(Colors.blueAccent.shade400),
             foregroundColor: WidgetStatePropertyAll(Colors.white),
-          )
+          ),
         ),
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
         textTheme: _textTheme(settings),
-        colorScheme: _colorScheme(settings)
+        colorScheme: _colorScheme(settings),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+            TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+          },
+        ),
       ),
       darkTheme: ThemeData(
         elevatedButtonTheme: ElevatedButtonThemeData(
@@ -43,13 +54,36 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.black,
         useMaterial3: true,
         textTheme: _textTheme(settings),
-        colorScheme: _colorScheme(settings)
+        colorScheme: _colorScheme(settings),
       ),
       routes: {
         '/': (ctx) => const SplashScreen(),
         '/home': (ctx) => const HomeScreen(),
         '/settings': (ctx) => const SettingScreen(),
-        '/library': (ctx) => const LibraryScreen()
+        '/library': (ctx) => const LibraryScreen(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/reader') {
+          final arg = settings.arguments;
+          final storyId = (arg is int) ? arg : null;
+
+          if (storyId == null) {
+            return MaterialPageRoute(
+              builder: (_) => const Scaffold(
+                body: Center(child: Text('Reader membutuhkan storyId (int).')),
+              ),
+              settings: settings,
+            );
+          }
+
+          return MaterialPageRoute(
+            builder: (_) => ReaderScreen(id: storyId),
+            settings: settings,
+          );
+        }
+
+        // kembalikan null agar fallback ke behavior default (atau tambahkan handler lain)
+        return null;
       },
     );
   }
@@ -95,9 +129,11 @@ class MyApp extends StatelessWidget {
     );
   }
 
-  ColorScheme _colorScheme(SettingsProvider s){
+  ColorScheme _colorScheme(SettingsProvider s) {
     return ColorScheme(
-      brightness: s.themeMode == ThemeMode.light ? Brightness.light : Brightness.dark,
+      brightness: s.themeMode == ThemeMode.light
+          ? Brightness.light
+          : Brightness.dark,
       primary: Colors.redAccent,
       onPrimary: Colors.white,
       secondary: Colors.blueAccent,
@@ -109,8 +145,6 @@ class MyApp extends StatelessWidget {
       surface: s.themeMode == ThemeMode.light ? Colors.white : Colors.black,
       onSurface: s.themeMode == ThemeMode.light ? Colors.black : Colors.white,
       outline: s.themeMode == ThemeMode.light ? Colors.black : Colors.white,
-      
     );
   }
-
 }
