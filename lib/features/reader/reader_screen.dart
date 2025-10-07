@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 
 import 'package:jejak_cerita_rakyat/providers/reader_provider.dart';
 import 'package:jejak_cerita_rakyat/providers/tts_provider.dart';
+// Compat adapter agar API lama (speak/speaking/active/volume...) tetap compile
+import 'package:jejak_cerita_rakyat/providers/tts_compat_adapter.dart';
 
 class ReaderScreen extends StatefulWidget {
   final int id;
@@ -21,6 +23,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _panelExpanded = false;
   bool _openedOnce = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Pastikan TTS siap sehingga "play pertama" langsung bunyi
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<TtsProvider>().ensureReady();
+    });
+  }
+
   // Precache image halaman berikutnya agar transisi lebih halus
   void _precacheNextPage(BuildContext context, String? nextPath) {
     if (nextPath == null) return;
@@ -28,15 +40,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (p.isEmpty) return;
 
     // Pilih ImageProvider sesuai sumber (URL vs asset)
-    ImageProvider provider;
-    if (p.startsWith('http://') || p.startsWith('https://')) {
-      provider = NetworkImage(p);
-    } else {
-      provider = AssetImage(p);
-    }
+    final ImageProvider provider =
+        (p.startsWith('http://') || p.startsWith('https://'))
+        ? NetworkImage(p)
+        : AssetImage(p) as ImageProvider;
 
     // Jalankan setelah frame ini supaya context sudah stabil
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       precacheImage(provider, context);
     });
   }
@@ -49,6 +60,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
     // Jalankan setelah widget attach supaya provider pasti ada.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
       // Buka cerita
       context.read<ReaderProvider>().openStory(widget.id);
 
@@ -391,7 +404,6 @@ class _VolumeSheet extends StatelessWidget {
   }
 }
 
-/// Panel teks: min height besar agar tidak overflow; overlay di bawah
 /// Panel teks: collapsed = ringkas (preview), expanded = scroll penuh
 class _ReadingPanel extends StatelessWidget {
   const _ReadingPanel({
@@ -476,8 +488,6 @@ class _ReadingPanel extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // === Konten teks ===
-                // Collapsed: preview pendek (2–3 baris)
-                // Expanded : scroll penuh + highlight
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
@@ -487,7 +497,7 @@ class _ReadingPanel extends StatelessWidget {
                         final txt = r.pages[r.index].textPlain ?? '';
 
                         if (!panelExpanded) {
-                          // PREVIEW — kecil agar panel bisa benar2 mengecil
+                          // PREVIEW
                           return Align(
                             alignment: Alignment.topLeft,
                             child: Text(
@@ -501,7 +511,7 @@ class _ReadingPanel extends StatelessWidget {
                           );
                         }
 
-                        // FULL SCROLL — saat expanded
+                        // FULL SCROLL
                         final normal = Theme.of(
                           context,
                         ).textTheme.bodyMedium!.copyWith(height: 1.35);
@@ -510,10 +520,7 @@ class _ReadingPanel extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         );
 
-                        final tts = context
-                            .read<
-                              TtsProvider
-                            >(); // read (bukan watch) agar panel tidak rebuild saat progress
+                        final tts = context.read<TtsProvider>(); // read only
 
                         return AnimatedSwitcher(
                           duration: const Duration(milliseconds: 220),
@@ -532,8 +539,7 @@ class _ReadingPanel extends StatelessWidget {
                             child: SingleChildScrollView(
                               controller: textScroll,
                               padding: const EdgeInsets.only(bottom: 8),
-                              physics:
-                                  const ClampingScrollPhysics(), // 4.3 (lihat di bawah)
+                              physics: const ClampingScrollPhysics(),
                               child: ValueListenableBuilder<TextRange>(
                                 valueListenable: tts.active,
                                 builder: (_, range, __) {
@@ -599,7 +605,7 @@ class _ControlsRow extends StatelessWidget {
             IconButton.outlined(
               onPressed: () {
                 if (tts.ready) {
-                  tts.speak(text);
+                  tts.speak(text); // via compat adapter -> speakText()
                 } else {
                   tts.stop();
                 }

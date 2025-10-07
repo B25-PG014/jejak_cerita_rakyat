@@ -1,0 +1,30 @@
+{
+  "slug": "nenek-gabus",
+  "title": "Nenek Dan Ikan Gabus",
+  "subtitle": "Kisah Nenek Tua Dan Ikan Gabus",
+  "synopsis": "Dan tak ada yang menyangka, hidup seorang nenek sederhana berubah, setelah bertemu seekor ikan gabus ajaib.",
+  "locale": "id",
+  "author": "Tim Jejak",
+  "source": "budaya-indonesia.org",
+  "age_min": 6,
+  "age_max": 10,
+
+  "cover": "assets/images/covers/Gabus_cov.png", 
+
+
+  "pages": [
+    {
+      "page_no": 1,
+      "image": "p1.png",  
+      "text": "Angasa terbang di atas pegunungan biru...",
+      "tts_ssml": "<speak><p>Angasa <emphasis>terbang</emphasis> di atas pegunungan biru...</p></speak>",
+      "duration_ms": 0
+    },
+    {
+      "page_no": 2,
+      "image": "p2.png",
+      "text": "Ia bertemu burung garuda yang bijak...",
+      "tts_ssml": "<speak><p>Ia bertemu burung <say-as interpret-as='characters'>G</say-as>aruda...</p></speak>"
+    }
+  ]
+}

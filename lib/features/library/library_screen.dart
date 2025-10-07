@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
 import 'package:jejak_cerita_rakyat/features/detail/detail_screen.dart';
+import 'package:jejak_cerita_rakyat/features/library/favorites_screen.dart';
 import 'widgets/book_row_card_basic.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -41,7 +42,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // background seperti Home
+          // background seperti Home (full screen)
           Positioned.fill(
             child: Image.asset(
               'assets/images/splash/splash.png',
@@ -56,7 +57,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
               child: Column(
                 children: [
-                  // ================== HEADER "chip" menyatu ==================
+                  // HEADER chip
                   Consumer<StoryProvider>(
                     builder: (context, sp, _) {
                       return Container(
@@ -82,14 +83,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         ),
                         child: Row(
                           children: [
-                            // tombol back
+                            // back — bulat chip style Home
                             _RoundIconButton(
-                              icon: Icons.arrow_back,
+                              icon: Icons.arrow_back_rounded,
                               tooltip: 'Kembali',
                               onTap: () => Navigator.of(context).pop(),
                             ),
                             const SizedBox(width: 12),
-                            // judul di tengah
+
+                            // judul
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,11 +111,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 ],
                               ),
                             ),
+
                             const SizedBox(width: 12),
-                            // tombol search
+
+                            // search — bulat chip style Home
                             _RoundIconButton(
-                              icon: _showSearch ? Icons.close : Icons.search,
-                              tooltip: _showSearch ? 'Tutup Pencarian' : 'Cari',
+                              icon: _showSearch
+                                  ? Icons.close_rounded
+                                  : Icons.search_rounded,
+                              tooltip: _showSearch
+                                  ? 'Tutup Pencarian'
+                                  : 'Cari Judul',
                               onTap: () {
                                 setState(() => _showSearch = !_showSearch);
                                 if (!_showSearch) _searchCtrl.clear();
@@ -125,7 +133,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     },
                   ),
 
-                  // ===========================================================
                   if (_showSearch) ...[
                     const SizedBox(height: 10),
                     TextField(
@@ -133,7 +140,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: 'Cari judul atau sinopsis…',
-                        prefixIcon: const Icon(Icons.search),
+                        prefixIcon: const Icon(Icons.search_rounded),
                         filled: true,
                         fillColor: cs.surface.withOpacity(.75),
                         border: OutlineInputBorder(
@@ -149,7 +156,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
                   const SizedBox(height: 12),
 
-                  // ========================= LIST =========================
+                  // LIST
                   Expanded(
                     child: Consumer<StoryProvider>(
                       builder: (context, sp, _) {
@@ -159,7 +166,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           );
                         }
 
-                        // filter
                         final q = _searchCtrl.text.trim().toLowerCase();
                         final items = q.isEmpty
                             ? sp.stories
@@ -180,8 +186,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               const SizedBox(height: 12),
                           itemBuilder: (context, i) {
                             final s = items[i];
+                            final fav = sp.isFavorite(s.id);
 
-                            // Arahkan ke DetailScreen (bukan langsung reader)
                             void goDetail() {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
@@ -190,29 +196,74 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               );
                             }
 
-                            try {
-                              return BookRowCardBasic(
-                                coverAsset: s.coverAsset,
-                                title: s.title,
-                                synopsis: s.synopsis ?? '-',
-                                // seluruh kartu -> Detail dulu
-                                onTap: goDetail,
-                                // kalau widget kamu punya onTapImage / onCoverTap,
-                                // aktifkan juga agar klik gambar dan kartu sama:
-                                // onTapImage: goDetail,
-                              );
-                            } catch (_) {
-                              // fallback sederhana
-                              return ListTile(
-                                leading: const Icon(Icons.menu_book_rounded),
-                                title: Text(s.title),
-                                subtitle: Text(s.synopsis ?? '-'),
-                                onTap: goDetail,
-                              );
-                            }
+                            return BookRowCardBasic(
+                              coverAsset: s.coverAsset,
+                              title: s.title,
+                              synopsis: s.synopsis ?? '-',
+                              onTap: goDetail,
+
+                              // aksi di dalam kartu — ikon bergaya chip
+                              isFavorite: fav,
+                              onFavorite: () => sp.toggleFavorite(s.id),
+                              onDelete: () async {
+                                await sp.deleteStory(s.id);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    content: Text(
+                                      'Cerita "${s.title}" dihapus',
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
                           },
                         );
                       },
+                    ),
+                  ),
+
+                  // BOTTOM: Tombol ke Favorit — gaya chip bottom bar Home
+                  const SizedBox(height: 8),
+                  SafeArea(
+                    top: false,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Material(
+                            color: cs.surface.withOpacity(0.85),
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const FavoritesScreen(),
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.favorite_rounded),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Favorit',
+                                      style: theme.textTheme.titleSmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -225,7 +276,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 }
 
-/// Tombol bulat kecil untuk header chip (konsisten gaya Home)
+// === tombol bulat gaya chip Home ===
 class _RoundIconButton extends StatelessWidget {
   const _RoundIconButton({
     required this.icon,
@@ -240,6 +291,7 @@ class _RoundIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     final btn = InkWell(
       customBorder: const CircleBorder(),
       onTap: onTap,
@@ -247,8 +299,9 @@ class _RoundIconButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: cs.primaryContainer.withOpacity(.9),
+          color: cs.surface.withOpacity(0.85),
           shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.12),
@@ -258,7 +311,7 @@ class _RoundIconButton extends StatelessWidget {
           ],
         ),
         alignment: Alignment.center,
-        child: Icon(icon, color: cs.onPrimaryContainer),
+        child: Icon(icon, color: cs.onSurface),
       ),
     );
 

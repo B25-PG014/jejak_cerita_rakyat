@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 
 class BookRowCardBasic extends StatelessWidget {
@@ -8,6 +7,9 @@ class BookRowCardBasic extends StatelessWidget {
     required this.title,
     required this.synopsis,
     required this.onTap,
+    this.isFavorite = false,
+    this.onFavorite,
+    this.onDelete,
   });
 
   final String? coverAsset;
@@ -15,133 +17,182 @@ class BookRowCardBasic extends StatelessWidget {
   final String synopsis;
   final VoidCallback onTap;
 
+  // Aksi
+  final bool isFavorite;
+  final VoidCallback? onFavorite;
+  final VoidCallback? onDelete;
+
   @override
   Widget build(BuildContext context) {
-    final panel = Colors.black.withOpacity(0.72);
-    final onPanel = Colors.white;
-    final border = Colors.white.withOpacity(.18);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
-    final w = MediaQuery.of(context).size.width;
-    final coverWidth = (w * 0.28).clamp(96.0, 140.0);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.20),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        // -> Bungkus dengan tinggi pasti supaya ListView punya ukuran anak yang jelas
-        child: SizedBox(
-          height: 134,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // COVER
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: coverWidth,
-                  child: _buildCover(coverAsset),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // PANEL TEKS
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  decoration: BoxDecoration(
-                    color: panel,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: border, width: 1),
-                  ),
-                  child: DefaultTextStyle(
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium!.copyWith(color: onPanel),
+    return Material(
+      color: cs.surface.withOpacity(.75),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Stack(
+          children: [
+            // MAIN ROW
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Cover(coverAsset: coverAsset),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      // JANGAN pakai Expanded/Flexible di sini untuk menghindari ParentDataWidget error
                       children: [
                         Text(
                           title,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: onPanel,
-                                fontWeight: FontWeight.w800,
-                              ),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        // Cukup Text dengan maxLines (tanpa Expanded)
                         Text(
-                          (synopsis.isEmpty) ? '-' : synopsis,
+                          synopsis,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: onPanel, height: 1.35),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+            ),
+
+            // ACTION OVERLAY (pojok kanan atas) — style chip Home
+            if (onFavorite != null || onDelete != null)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Row(
+                  children: [
+                    if (onFavorite != null)
+                      _CircleIconButton(
+                        icon: isFavorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        iconColor: isFavorite
+                            ? cs.error
+                            : cs.onSurface, // merah saat aktif
+                        onTap: onFavorite!,
+                        tooltip: isFavorite
+                            ? 'Hapus dari Favorit'
+                            : 'Tambah Favorit',
+                      ),
+                    if (onDelete != null) const SizedBox(width: 6),
+                    if (onDelete != null)
+                      _CircleIconButton(
+                        icon: Icons.delete_outline_rounded,
+                        iconColor: cs.onSurface,
+                        onTap: onDelete!,
+                        tooltip: 'Hapus cerita',
+                      ),
+                  ],
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
+}
 
-  // ===== Loader cover yang anti-crash + bersihkan kutip ganda di path =====
-  Widget _buildCover(String? path0) {
-    if (path0 == null || path0.isEmpty) return _coverFallback();
+class _Cover extends StatelessWidget {
+  const _Cover({required this.coverAsset});
+  final String? coverAsset;
 
-    // Hilangkan kutip yang ikut tersimpan di DB: "assets/...png"
-    final path = path0.trim().replaceAll(RegExp(r'^"+|"+$'), '');
-    final lower = path.toLowerCase();
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: 60,
+      height: 86,
+      decoration: BoxDecoration(
+        color: Colors.black12,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Icon(Icons.menu_book_rounded),
+    );
 
-    if (lower.startsWith('assets/')) {
-      return Image.asset(
-        path,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _coverFallback(),
+    if (coverAsset == null || coverAsset!.isEmpty) return placeholder;
+
+    final p = coverAsset!;
+    if (p.startsWith('http://') || p.startsWith('https://')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          p,
+          width: 60,
+          height: 86,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => placeholder,
+        ),
       );
     }
-    if (lower.startsWith('http://') || lower.startsWith('https://')) {
-      return Image.network(
-        path,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        p,
+        width: 60,
+        height: 86,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _coverFallback(),
-      );
-    }
-
-    // Path lokal absolut (hasil copy ke Documents/stories/<slug>/...)
-    try {
-      final f = File(path);
-      if (!f.existsSync()) return _coverFallback();
-      return Image.file(
-        f,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _coverFallback(),
-      );
-    } catch (_) {
-      return _coverFallback();
-    }
+        errorBuilder: (_, __, ___) => placeholder,
+      ),
+    );
   }
+}
 
-  Widget _coverFallback() => Container(
-    color: Colors.grey.shade300,
-    alignment: Alignment.center,
-    child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
-  );
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.iconColor,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color iconColor;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    final btn = InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: cs.surface.withOpacity(0.85),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.12),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 20, color: iconColor),
+      ),
+    );
+
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
+  }
 }

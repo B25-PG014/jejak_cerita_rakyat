@@ -90,6 +90,9 @@ flutter:
     - assets/stories/
     - assets/svg/
     - assets/stories/malin-kundang/
+    - assets/stories/nenek-gabus/
+    - assets/stories/ande-lumut/
+    - assets/svg/map_indonesia_simplified.svg
   fonts:
     - family: Atkinson
       fonts:

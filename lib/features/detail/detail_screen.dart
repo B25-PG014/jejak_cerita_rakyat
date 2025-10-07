@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:jejak_cerita_rakyat/core/widgets/story_image.dart';
 import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
 import 'package:jejak_cerita_rakyat/providers/tts_provider.dart';
+import 'package:jejak_cerita_rakyat/providers/tts_compat_adapter.dart';
 
 class DetailScreen extends StatelessWidget {
   final StoryItem data;

@@ -166,6 +166,40 @@ class StoryProvider extends ChangeNotifier {
   }
 
   // ====================
+  // ===== FAVORIT =====
+  // ====================
+
+  final Set<int> _favoriteIds = <int>{};
+  Set<int> get favoriteIds => _favoriteIds;
+
+  bool isFavorite(int id) => _favoriteIds.contains(id);
+
+  void toggleFavorite(int id) {
+    if (_favoriteIds.contains(id)) {
+      _favoriteIds.remove(id);
+    } else {
+      _favoriteIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  // ====================
+  // ===== HAPUS CERITA =====
+  // ====================
+
+  /// Hapus cerita dari list saat ini.
+  /// NOTE: kalau kamu juga simpan di storage/DB, panggil repo delete di sini.
+  Future<void> deleteStory(int id) async {
+    // Contoh kalau kamu punya endpoint di repository:
+    // try { await _repo.deleteStory(id); } catch (_) {}
+    _favoriteIds.remove(id); // cabut dari favorit kalau ada
+    _stories.removeWhere((s) => s.id == id);
+    // kalau kamu juga pakai hasil pencarian:
+    _searchResults.removeWhere((s) => s.id == id);
+    notifyListeners();
+  }
+
+  // ====================
   // Peta / Provinsi
   // ====================
 

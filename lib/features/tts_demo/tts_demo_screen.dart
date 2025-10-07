@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/tts_provider.dart';
+import 'package:jejak_cerita_rakyat/providers/tts_compat_adapter.dart';
 
 class TtsDemoScreen extends StatefulWidget {
   const TtsDemoScreen({super.key});

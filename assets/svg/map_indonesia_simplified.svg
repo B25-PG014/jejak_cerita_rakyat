@@ -153,4 +153,53 @@
   <circle class="Kalimantan Timur" cx="469.2" cy="125.4" id="IDKI">
   </circle>
  </g>
+ <!-- ===== Anchors (rel 0..1). BACA oleh loadSvgAnchors() ===== -->
+ <g id="anchors">
+  <!-- Sumatera -->
+  <circle data-name="Aceh"               data-xrel="0.060" data-yrel="0.375" r="0"/>
+  <circle data-name="Sumatera Utara"     data-xrel="0.102" data-yrel="0.395" r="0"/>
+  <circle data-name="Sumatera Barat"     data-xrel="0.052" data-yrel="0.215" r="0"/>
+  <circle data-name="Riau"               data-xrel="0.180" data-yrel="0.445" r="0"/>
+  <circle data-name="Kepulauan Riau"     data-xrel="0.195" data-yrel="0.485" r="0"/>
+  <circle data-name="Jambi"              data-xrel="0.195" data-yrel="0.475" r="0"/>
+  <circle data-name="Sumatera Selatan"   data-xrel="0.205" data-yrel="0.515" r="0"/>
+  <circle data-name="Bengkulu"           data-xrel="0.170" data-yrel="0.505" r="0"/>
+  <circle data-name="Lampung"            data-xrel="0.215" data-yrel="0.565" r="0"/>
+  <circle data-name="Bangka Belitung"    data-xrel="0.230" data-yrel="0.520" r="0"/>
+
+  <!-- Jawa -->
+  <circle data-name="Banten"             data-xrel="0.270" data-yrel="0.585" r="0"/>
+  <circle data-name="DKI Jakarta"        data-xrel="0.290" data-yrel="0.585" r="0"/>
+  <circle data-name="Jawa Barat"         data-xrel="0.305" data-yrel="0.595" r="0"/>
+  <circle data-name="Jawa Tengah"        data-xrel="0.345" data-yrel="0.600" r="0"/>
+  <circle data-name="DI Yogyakarta"      data-xrel="0.355" data-yrel="0.615" r="0"/>
+  <circle data-name="Jawa Timur"         data-xrel="0.385" data-yrel="0.605" r="0"/>
+
+  <!-- Bali & Nusa -->
+  <circle data-name="Bali"               data-xrel="0.4258" data-yrel="0.6070" r="0"/>
+  <circle data-name="Nusa Tenggara Barat" data-xrel="0.445" data-yrel="0.625" r="0"/>
+  <circle data-name="Nusa Tenggara Timur" data-xrel="0.495" data-yrel="0.640" r="0"/>
+
+  <!-- Kalimantan -->
+  <circle data-name="Kalimantan Barat"   data-xrel="0.305" data-yrel="0.475" r="0"/>
+  <circle data-name="Kalimantan Tengah"  data-xrel="0.350" data-yrel="0.495" r="0"/>
+  <circle data-name="Kalimantan Selatan" data-xrel="0.365" data-yrel="0.535" r="0"/>
+  <circle data-name="Kalimantan Timur"   data-xrel="0.405" data-yrel="0.485" r="0"/>
+  <circle data-name="Kalimantan Utara"   data-xrel="0.385" data-yrel="0.455" r="0"/>
+
+  <!-- Sulawesi -->
+  <circle data-name="Sulawesi Utara"     data-xrel="0.515" data-yrel="0.505" r="0"/>
+  <circle data-name="Gorontalo"          data-xrel="0.505" data-yrel="0.520" r="0"/>
+  <circle data-name="Sulawesi Tengah"    data-xrel="0.505" data-yrel="0.540" r="0"/>
+  <circle data-name="Sulawesi Barat"     data-xrel="0.490" data-yrel="0.560" r="0"/>
+  <circle data-name="Sulawesi Selatan"   data-xrel="0.505" data-yrel="0.575" r="0"/>
+  <circle data-name="Sulawesi Tenggara"  data-xrel="0.535" data-yrel="0.585" r="0"/>
+
+  <!-- Maluku & Papua -->
+  <circle data-name="Maluku"             data-xrel="0.600" data-yrel="0.610" r="0"/>
+  <circle data-name="Maluku Utara"       data-xrel="0.600" data-yrel="0.560" r="0"/>
+  <circle data-name="Papua Barat"        data-xrel="0.670" data-yrel="0.545" r="0"/>
+  <circle data-name="Papua"              data-xrel="0.735" data-yrel="0.545" r="0"/>
+ </g>
+
 </svg>
