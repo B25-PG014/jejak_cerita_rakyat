@@ -10,6 +10,12 @@ import 'package:jejak_cerita_rakyat/providers/reader_provider.dart';
 import 'package:jejak_cerita_rakyat/providers/tts_provider.dart';
 // Compat adapter agar API lama (speak/speaking/active/volume...) tetap compile
 import 'package:jejak_cerita_rakyat/providers/tts_compat_adapter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:jejak_cerita_rakyat/core/local/reading_progress_store.dart';
+
+// === Tambahan import minimal untuk patch ===
+import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
+import 'package:jejak_cerita_rakyat/features/library/library_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   final int id;
@@ -19,18 +25,32 @@ class ReaderScreen extends StatefulWidget {
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends State<ReaderScreen>
+    with WidgetsBindingObserver {
   final _textScroll = ScrollController();
   bool _panelExpanded = false;
   bool _openedOnce = false;
   final ValueNotifier<bool> _autoRead = ValueNotifier<bool>(false);
+  // Restore sekali saat pages sudah siap
+  bool _restoredOnce = false;
+  int? _pendingTargetIndex;
+  VoidCallback? _rpListener;
 
   // NEW: subscription selesai TTS → untuk auto-advance
   StreamSubscription<void>? _ttsDoneSub;
 
+  Future<void> _saveReadingProgress(int? storyId, int pageIndex) async {
+    try {
+      if (storyId == null) return;
+      await ReadingProgressStore.setPage(storyId, pageIndex);
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // <-- DAFTAR observer lifecycle
+
     // pastikan TTS sinopsis benar2 mati saat masuk reader
     final tts = context.read<TtsProvider>();
     Future.microtask(() async {
@@ -102,6 +122,46 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
       // Buka cerita
       context.read<ReaderProvider>().openStory(widget.id);
+      // ===== Siapkan target restore dari SharedPreferences (tanpa melompat dulu) =====
+      try {
+        final r0 = context.read<ReaderProvider>();
+        final saved = (r0.storyId != null)
+            ? await ReadingProgressStore.getPage(r0.storyId!)
+            : null;
+        _pendingTargetIndex = saved; // bisa null kalau belum ada progres
+      } catch (_) {
+        _pendingTargetIndex = null;
+      }
+
+      // ===== Pasang listener satu-kali: setelah pages siap & isBusy=false, baru lompat =====
+      final r = context.read<ReaderProvider>();
+      _rpListener = () {
+        if (_restoredOnce) return;
+        if (r.isBusy || r.pages.isEmpty) return;
+        // Jalankan setelah frame berikutnya agar tidak dibatalkan oleh rebuild berikutnya
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_restoredOnce) return;
+          if (!mounted) return;
+          if (r.pages.isEmpty) return;
+          if (_pendingTargetIndex != null) {
+            final target = _pendingTargetIndex!.clamp(0, r.pages.length - 1);
+            if (target > r.index) {
+              for (int i = r.index; i < target; i++) {
+                r.nextPage();
+              }
+            } else if (target < r.index) {
+              for (int i = r.index; i > target; i--) {
+                r.prevPage();
+              }
+            }
+          }
+          _restoredOnce = true;
+          if (_rpListener != null) {
+            r.removeListener(_rpListener!);
+          }
+        });
+      };
+      r.addListener(_rpListener!);
 
       // Auto-scroll teks mengikuti progres TTS
       final tts = context.read<TtsProvider>();
@@ -126,9 +186,64 @@ class _ReaderScreenState extends State<ReaderScreen> {
         final r = context.read<ReaderProvider>();
         if (r.pages.isEmpty) return;
         final hasNext = r.index + 1 < r.pages.length;
-        if (!hasNext) return;
 
+        // === Tambahan: jika sudah di halaman terakhir → tampilkan end-of-story sheet ===
+        if (!hasNext) {
+          _autoRead.value = false; // cegah loop
+          try {
+            await _saveReadingProgress(r.storyId, r.index);
+          } catch (_) {}
+          try {
+            await tts.stop();
+          } catch (_) {}
+
+          if (!mounted) return;
+
+          final sp = context.read<StoryProvider>();
+          final storyId = r.storyId;
+          final isFav = (storyId != null) ? sp.isFavorite(storyId) : false;
+
+          _showEndOfStorySheet(
+            context,
+            isFavorite: isFav,
+            onToggleFavorite: () {
+              if (storyId == null) return;
+              sp.toggleFavorite(storyId);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  behavior: SnackBarBehavior.floating,
+                  content: Text(
+                    isFav ? 'Dihapus dari Favorit' : 'Ditambahkan ke Favorit',
+                  ),
+                ),
+              );
+            },
+            onRestart: () async {
+              await tts.stop();
+              for (int i = r.index; i > 0; i--) {
+                r.prevPage();
+              }
+              tts.active.value = const TextRange(start: 0, end: 0);
+              final page0 = r.pages[r.index];
+              final text0 = (page0.textPlain ?? '').trim();
+              if (text0.isNotEmpty) {
+                _autoRead.value = true;
+                await tts.speak(text0);
+              }
+            },
+            onBrowseOthers: () {
+              // Arahkan ke LibraryScreen
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const LibraryScreen()));
+            },
+          );
+          return;
+        }
+
+        // Default: masih ada halaman berikut → lanjut otomatis
         r.nextPage();
+        await _saveReadingProgress(r.storyId, r.index);
         tts.active.value = const TextRange(start: 0, end: 0);
 
         final page = r.pages[r.index];
@@ -144,9 +259,197 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    // Simpan progres terakhir saat keluar Reader
+    try {
+      final r = context.read<ReaderProvider>();
+      _saveReadingProgress(r.storyId, r.index);
+    } catch (_) {}
+    // Lepas listener bila masih terpasang
+    try {
+      final r = context.read<ReaderProvider>();
+      if (_rpListener != null) {
+        r.removeListener(_rpListener!);
+      }
+    } catch (_) {}
     _ttsDoneSub?.cancel();
     _textScroll.dispose();
+
+    WidgetsBinding.instance.removeObserver(this); // <-- LEPAS observer
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    // Saat pindah app/layar mati/background → hentikan TTS & simpan progres
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      try {
+        await context.read<TtsProvider>().stop();
+      } catch (_) {}
+      try {
+        await context.read<TtsCompatAdapter>().stop();
+      } catch (_) {}
+      try {
+        final r = context.read<ReaderProvider>();
+        await _saveReadingProgress(r.storyId, r.index);
+      } catch (_) {}
+    }
+  }
+
+  // === Helper untuk memunculkan sheet akhir cerita dari mana saja (NEXT / auto-read) ===
+  void _presentEndSheet() async {
+    if (!mounted) return;
+    // Matikan auto-read dan TTS, simpan progres
+    _autoRead.value = false;
+    try {
+      final tts = context.read<TtsProvider>();
+      await tts.stop();
+    } catch (_) {}
+    try {
+      final r = context.read<ReaderProvider>();
+      await _saveReadingProgress(r.storyId, r.index);
+    } catch (_) {}
+
+    final r = context.read<ReaderProvider>();
+    final sp = context.read<StoryProvider>();
+    final tts = context.read<TtsProvider>();
+    final storyId = r.storyId;
+    final isFav = (storyId != null) ? sp.isFavorite(storyId) : false;
+
+    _showEndOfStorySheet(
+      context,
+      isFavorite: isFav,
+      onToggleFavorite: () {
+        if (storyId == null) return;
+        sp.toggleFavorite(storyId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              isFav ? 'Dihapus dari Favorit' : 'Ditambahkan ke Favorit',
+            ),
+          ),
+        );
+      },
+      onRestart: () async {
+        await tts.stop();
+        for (int i = r.index; i > 0; i--) {
+          r.prevPage();
+        }
+        tts.active.value = const TextRange(start: 0, end: 0);
+        final page0 = r.pages[r.index];
+        final text0 = (page0.textPlain ?? '').trim();
+        if (text0.isNotEmpty) {
+          _autoRead.value = true;
+          await tts.speak(text0);
+        }
+      },
+      onBrowseOthers: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const LibraryScreen()));
+      },
+    );
+  }
+
+  // === Helper sheet akhir cerita (Tambahan patch) ===
+  void _showEndOfStorySheet(
+    BuildContext context, {
+    required Future<void> Function() onRestart,
+    required VoidCallback onToggleFavorite,
+    required VoidCallback onBrowseOthers,
+    bool isFavorite = false,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        final cs = Theme.of(context).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: cs.surface.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.18),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.22),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle_rounded, size: 40),
+                const SizedBox(height: 8),
+                Text(
+                  'Cerita selesai',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+
+                // Baris: Favorit + Ulang dari awal (TIDAK ADA "Tetap di sini")
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          onToggleFavorite();
+                        },
+                        icon: Icon(
+                          isFavorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                        ),
+                        label: Text(
+                          isFavorite ? 'Hapus Favorit' : 'Tandai Favorit',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          await onRestart();
+                        },
+                        icon: const Icon(Icons.replay_rounded),
+                        label: const Text('Ulang dari awal'),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                // Tombol penuh: Baca cerita lain (baris bawah)
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      onBrowseOthers();
+                    },
+                    icon: const Icon(Icons.menu_book_rounded),
+                    label: const Text('Baca cerita lain'),
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -229,6 +532,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       setState(() => _panelExpanded = !_panelExpanded),
                   textScroll: _textScroll,
                   autoReadVN: _autoRead,
+                  onRequestEndSheet: _presentEndSheet, // <-- pass callback
                 ),
 
                 // bayangan lembut di bawah panel supaya kontras
@@ -242,7 +546,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       decoration: BoxDecoration(
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: .25),
+                            color: Colors.black.withValues(alpha: 0.25),
                             blurRadius: 14,
                             spreadRadius: -4,
                             offset: const Offset(0, -4),
@@ -264,7 +568,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
 /// Loader gambar yang "tahan banting":
 /// - URL -> network
 /// - Asset relatif: diprefix dengan baseDir: assets/stories/[judul-cerita]/
-/// - Jika gagal -> placeholder.
 class _SafeStoryImage extends StatelessWidget {
   const _SafeStoryImage({required this.path, required this.baseDir});
   final String? path;
@@ -359,7 +662,7 @@ class _SafeStoryImage extends StatelessWidget {
   Widget _placeholder(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      color: cs.surface.withValues(alpha: .15),
+      color: cs.surface.withValues(alpha: 0.15),
       alignment: Alignment.center,
       child: Icon(
         Icons.image_not_supported_outlined,
@@ -392,6 +695,13 @@ class _TopGlassBar extends StatelessWidget {
               } catch (_) {}
               try {
                 await context.read<TtsCompatAdapter>().stop();
+              } catch (_) {}
+              // Simpan progres sebelum keluar
+              try {
+                final r = context.read<ReaderProvider>();
+                if (r.storyId != null) {
+                  await ReadingProgressStore.setPage(r.storyId!, r.index);
+                }
               } catch (_) {}
               if (context.mounted) Navigator.of(context).pop();
             },
@@ -446,15 +756,15 @@ class _VolumeSheet extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          color: cs.surface.withValues(alpha: .92),
+          color: cs.surface.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withValues(alpha: .18),
+            color: Colors.white.withValues(alpha: 0.18),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: .22),
+              color: Colors.black.withValues(alpha: 0.22),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -553,12 +863,14 @@ class _ReadingPanel extends StatelessWidget {
     required this.onToggle,
     required this.textScroll,
     required this.autoReadVN,
+    required this.onRequestEndSheet,
   });
 
   final bool panelExpanded;
   final VoidCallback onToggle;
   final ScrollController textScroll;
   final ValueNotifier<bool> autoReadVN;
+  final VoidCallback onRequestEndSheet;
 
   @override
   Widget build(BuildContext context) {
@@ -585,15 +897,15 @@ class _ReadingPanel extends StatelessWidget {
         curve: Curves.easeOutCubic,
         height: panelExpanded ? panelMax : collapsedHeight,
         decoration: BoxDecoration(
-          color: cs.surface.withValues(alpha: .88),
+          color: cs.surface.withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withValues(alpha: .2),
+            color: Colors.white.withValues(alpha: 0.2),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: .28),
+              color: Colors.black.withValues(alpha: 0.28),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -615,7 +927,7 @@ class _ReadingPanel extends StatelessWidget {
                         height: 3,
                         margin: const EdgeInsets.only(right: 10),
                         decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: .25),
+                          color: cs.onSurface.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -702,7 +1014,7 @@ class _ReadingPanel extends StatelessWidget {
                 ),
 
                 // Kontrol
-                const _ControlsRow(),
+                _ControlsRow(onRequestEndSheet: onRequestEndSheet),
                 const SizedBox(height: 4), // diperkecil agar aman
                 // === Konten teks ===
                 Expanded(
@@ -738,7 +1050,7 @@ class _ReadingPanel extends StatelessWidget {
                           context,
                         ).textTheme.bodyMedium!.copyWith(height: 1.35);
                         final hi = normal.copyWith(
-                          backgroundColor: cs.primary.withValues(alpha: .25),
+                          backgroundColor: cs.primary.withValues(alpha: 0.25),
                           fontWeight: FontWeight.w700,
                         );
 
@@ -803,7 +1115,9 @@ class _ReadingPanel extends StatelessWidget {
 
 /// Tombol kontrol narasi & page
 class _ControlsRow extends StatelessWidget {
-  const _ControlsRow();
+  const _ControlsRow({required this.onRequestEndSheet});
+
+  final VoidCallback onRequestEndSheet;
 
   @override
   Widget build(BuildContext context) {
@@ -837,6 +1151,14 @@ class _ControlsRow extends StatelessWidget {
                 await tts.stop();
                 r.prevPage();
                 afterPageChanged();
+                // Simpan progres setelah pindah halaman
+                try {
+                  final sp = await SharedPreferences.getInstance();
+                  if (r.storyId != null) {
+                    await sp.setInt('last_story_id', r.storyId!);
+                    await sp.setInt('last_page_index', r.index);
+                  }
+                } catch (_) {}
               },
               icon: const Icon(Icons.skip_previous_rounded),
             ),
@@ -863,9 +1185,36 @@ class _ControlsRow extends StatelessWidget {
             IconButton.outlined(
               visualDensity: VisualDensity.compact,
               onPressed: () async {
+                if (r.pages.isEmpty) return;
+
+                final isLast = (r.index + 1) >= r.pages.length;
+
                 await tts.stop();
-                r.nextPage();
                 afterPageChanged();
+
+                if (isLast) {
+                  // Simpan progres lalu munculkan sheet akhir
+                  try {
+                    final sp = await SharedPreferences.getInstance();
+                    if (r.storyId != null) {
+                      await sp.setInt('last_story_id', r.storyId!);
+                      await sp.setInt('last_page_index', r.index);
+                    }
+                  } catch (_) {}
+                  onRequestEndSheet();
+                  return;
+                }
+
+                // Masih ada halaman berikutnya -> lanjut normal
+                r.nextPage();
+                // Simpan progres setelah pindah halaman
+                try {
+                  final sp = await SharedPreferences.getInstance();
+                  if (r.storyId != null) {
+                    await sp.setInt('last_story_id', r.storyId!);
+                    await sp.setInt('last_page_index', r.index);
+                  }
+                } catch (_) {}
               },
               icon: const Icon(Icons.skip_next_rounded),
             ),
@@ -887,12 +1236,12 @@ class _EmptyStateCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: cs.surface.withValues(alpha: .8),
+          color: cs.surface.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: .2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: .22),
+              color: Colors.black.withValues(alpha: 0.22),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),

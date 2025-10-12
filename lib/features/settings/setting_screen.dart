@@ -72,11 +72,19 @@ class SettingScreen extends StatelessWidget {
                                 // Mode gelap (switch dirapatkan ke kanan via _SettingRow)
                                 _SettingRow(
                                   label: 'Mode Gelap',
-                                  trailing: Switch(
-                                    value: settings.themeMode == ThemeMode.dark,
-                                    onChanged: (v) => settings.setThemeMode(
-                                      v ? ThemeMode.dark : ThemeMode.light,
-                                    ),
+                                  trailing: Builder(
+                                    builder: (ctx) {
+                                      // Baca tema efektif yang sedang terpakai, supaya switch selalu sinkron.
+                                      final isDarkNow =
+                                          Theme.of(ctx).brightness ==
+                                          Brightness.dark;
+                                      return Switch(
+                                        value: isDarkNow,
+                                        onChanged: (v) => settings.setThemeMode(
+                                          v ? ThemeMode.dark : ThemeMode.light,
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                                 const Divider(height: 24, thickness: 0.6),
@@ -491,8 +499,8 @@ class _MiniGlassIcon extends StatelessWidget {
 class _GlassCircleButton extends StatelessWidget {
   const _GlassCircleButton({
     required this.icon,
-    required this.onTap,
-    this.tooltip, // <-- PATCH: inisialisasi field final tooltip via constructor
+    required this.onTap, // <-- PATCH: inisialisasi field final tooltip via constructor
+    this.tooltip,
   });
   final IconData icon;
   final VoidCallback onTap;

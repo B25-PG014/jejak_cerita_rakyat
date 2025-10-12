@@ -2,15 +2,38 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jejak_cerita_rakyat/core/widgets/story_image.dart';
 import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
 import 'package:jejak_cerita_rakyat/providers/tts_provider.dart';
 import 'package:jejak_cerita_rakyat/providers/tts_compat_adapter.dart';
+// PATCH: gunakan store progres utama Reader
+import 'package:jejak_cerita_rakyat/core/local/reading_progress_store.dart';
 
 class DetailScreen extends StatelessWidget {
   final StoryItem data;
   const DetailScreen({super.key, required this.data});
+
+  // PATCH: helper untuk memuat info "lanjutkan"
+  Future<_ContinueInfo> _loadContinueInfo(StoryItem data) async {
+    final prefs = await SharedPreferences.getInstance();
+    final spId = prefs.getInt('last_story_id');
+    final spPage = prefs.getInt('last_page_index');
+    int? persistedPage;
+    try {
+      persistedPage = await ReadingProgressStore.getPage(data.id);
+    } catch (_) {
+      persistedPage = null;
+    }
+    return _ContinueInfo(
+      storyId: spId,
+      lastPage: spPage,
+      persistedPage: persistedPage,
+      pageCount: data.pageCount,
+      thisStoryId: data.id,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,63 +164,161 @@ class DetailScreen extends StatelessWidget {
                       minExtentHeight: 64,
                       maxExtentHeight: 74,
                       builder: (context) {
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _PrimaryGlassButton(
-                                  icon: Icons.menu_book_rounded,
-                                  label: 'Mulai Membaca',
-                                  onTap: () async {
-                                    // TODO: push ke reader bila tersedia:
-                                    try {
-                                      final tts = context.read<TtsProvider>();
-                                      // tunggu sebentar supaya engine benar2 stop, tapi jangan bikin nge-freeze
-                                      await Future.any([
-                                        tts.stop(),
-                                        context.read<TtsCompatAdapter>().stop(),
-                                        Future.delayed(
-                                          const Duration(milliseconds: 250),
-                                        ), // timeout kecil
-                                      ]);
-                                    } catch (_) {}
+                        // PATCH: ganti FutureBuilder -> muat info dari ProgressStore + SharedPrefs
+                        return FutureBuilder<_ContinueInfo>(
+                          future: _loadContinueInfo(data),
+                          builder: (ctx, snap) {
+                            final info = snap.data;
+                            final bool canContinue = info?.canContinue ?? false;
 
-                                    if (!context.mounted) return;
-                                    await Navigator.of(
-                                      context,
-                                    ).pushNamed('/reader', arguments: data.id);
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Consumer<TtsProvider>(
-                                  builder: (context, tts, _) {
-                                    final playing = tts.speaking;
-                                    return _PrimaryGlassButton(
-                                      icon: playing
-                                          ? Icons.stop
-                                          : Icons.play_arrow_rounded,
-                                      label: playing
-                                          ? 'Berhenti'
-                                          : 'Dengarkan Narasi',
-                                      onTap: () {
-                                        if (playing) {
-                                          tts.stop();
-                                        } else if ((data.synopsis ?? '')
-                                            .isNotEmpty) {
-                                          tts.speak(data.synopsis!);
-                                        }
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                              child: Row(
+                                children: [
+                                  // ==== MULAI MEMBACA (RESET KE HALAMAN 0) ====
+                                  Expanded(
+                                    child: _PrimaryGlassButton(
+                                      icon: Icons.menu_book_rounded,
+                                      label: 'Mulai Membaca',
+                                      onTap: () async {
+                                        // Stop narasi sinopsis (jaga2)
+                                        try {
+                                          final tts = context
+                                              .read<TtsProvider>();
+                                          await Future.any([
+                                            tts.stop(),
+                                            context
+                                                .read<TtsCompatAdapter>()
+                                                .stop(),
+                                            Future.delayed(
+                                              const Duration(milliseconds: 250),
+                                            ),
+                                          ]);
+                                        } catch (_) {}
+
+                                        // PATCH: set progres ke index 0 sebelum masuk Reader
+                                        try {
+                                          await ReadingProgressStore.setPage(
+                                            data.id,
+                                            0,
+                                          );
+                                        } catch (_) {}
+                                        try {
+                                          final sp =
+                                              await SharedPreferences.getInstance();
+                                          await sp.setInt(
+                                            'last_story_id',
+                                            data.id,
+                                          );
+                                          await sp.setInt('last_page_index', 0);
+                                        } catch (_) {}
+
+                                        if (!context.mounted) return;
+                                        await Navigator.of(context).pushNamed(
+                                          '/reader',
+                                          arguments: data.id,
+                                        );
                                       },
-                                    );
-                                  },
-                                ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // ==== LANJUTKAN MEMBACA ====
+                                  Expanded(
+                                    child: _PrimaryGlassButton(
+                                      icon: Icons.playlist_add_check_rounded,
+                                      label: 'Lanjutkan Membaca',
+                                      onTap: () async {
+                                        // Jika belum ada progres, beritahu user
+                                        if (!canContinue) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Belum ada progres untuk cerita ini.',
+                                                ),
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                          }
+                                          return;
+                                        }
+                                        // Hentikan sinopsis bila ada
+                                        try {
+                                          final tts = context
+                                              .read<TtsProvider>();
+                                          await Future.any([
+                                            tts.stop(),
+                                            context
+                                                .read<TtsCompatAdapter>()
+                                                .stop(),
+                                            Future.delayed(
+                                              const Duration(milliseconds: 250),
+                                            ),
+                                          ]);
+                                        } catch (_) {}
+
+                                        if (!context.mounted) return;
+                                        // ReaderScreen akan restore dari ReadingProgressStore
+                                        await Navigator.of(context).pushNamed(
+                                          '/reader',
+                                          arguments: data.id,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         );
                       },
+                    ),
+                  ),
+
+                  // ===== Tombol Dengarkan Narasi (REAKTIF ke speakingVN) =====
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Consumer<TtsProvider>(
+                        builder: (context, tts, _) {
+                          // ⛳️ Perbaikan utama: gunakan speakingVN agar UI ikut rebuild
+                          return ValueListenableBuilder<bool>(
+                            valueListenable: tts.speakingVN,
+                            builder: (_, playing, __) {
+                              return SizedBox(
+                                width: double.infinity,
+                                child: _PrimaryGlassButton(
+                                  icon: playing
+                                      ? Icons.stop
+                                      : Icons.play_arrow_rounded,
+                                  label: playing
+                                      ? 'Berhenti'
+                                      : 'Dengarkan Narasi',
+                                  onTap: () async {
+                                    if (playing) {
+                                      await tts.stop();
+                                      return;
+                                    }
+                                    final text = (data.synopsis ?? '').trim();
+                                    if (text.isEmpty) return;
+                                    try {
+                                      await Future.any([
+                                        context.read<TtsCompatAdapter>().stop(),
+                                        Future.delayed(
+                                          const Duration(milliseconds: 150),
+                                        ),
+                                      ]);
+                                    } catch (_) {}
+                                    await tts.speak(text);
+                                  },
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
                   ),
 
@@ -500,4 +621,37 @@ class _PrimaryGlassButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// ===== Helper model untuk status lanjutkan =====
+class _ContinueInfo {
+  final int? storyId; // dari SharedPreferences
+  final int? lastPage; // dari SharedPreferences
+  final int? persistedPage; // dari ReadingProgressStore
+  final int? pageCount; // dari StoryItem (nullable)
+  final int thisStoryId;
+
+  _ContinueInfo({
+    required this.storyId,
+    required this.lastPage,
+    required this.persistedPage,
+    required this.pageCount,
+    required this.thisStoryId,
+  });
+
+  bool get _spValid {
+    final lp = lastPage;
+    if (storyId != thisStoryId || lp == null || lp < 0) return false;
+    if (pageCount != null && lp >= pageCount!) return false;
+    return true;
+  }
+
+  bool get _persistValid {
+    final pp = persistedPage;
+    if (pp == null || pp < 0) return false;
+    if (pageCount != null && pp >= pageCount!) return false;
+    return true;
+  }
+
+  bool get canContinue => _persistValid || _spValid;
 }

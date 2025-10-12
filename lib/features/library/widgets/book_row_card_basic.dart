@@ -92,13 +92,13 @@ class BookRowCardBasic extends StatelessWidget {
                             : 'Tambah Favorit',
                       ),
                     if (onDelete != null) const SizedBox(width: 6),
-                    if (onDelete != null)
-                      _CircleIconButton(
-                        icon: Icons.delete_outline_rounded,
-                        iconColor: cs.onSurface,
-                        onTap: onDelete!,
-                        tooltip: 'Hapus cerita',
-                      ),
+                    // if (onDelete != null)
+                    // _CircleIconButton(
+                    //   icon: Icons.delete_outline_rounded,
+                    //   iconColor: cs.onSurface,
+                    //   onTap: onDelete!,
+                    //   tooltip: 'Hapus cerita',
+                    // ),
                   ],
                 ),
               ),

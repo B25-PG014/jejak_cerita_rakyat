@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../data/repositories/story_repository.dart';
+import 'package:jejak_cerita_rakyat/core/local/reading_progress_store.dart';
+import 'package:jejak_cerita_rakyat/core/local/favorite_store.dart';
 
 /// ====================
 /// Data models
@@ -121,6 +123,30 @@ class StoryProvider extends ChangeNotifier {
     await Future.wait([loadStories(), loadProvincePins()]);
   }
 
+  /// ====================
+  /// Favorit (persist) - state & loader
+  /// ====================
+  final Set<int> _favoriteIds = <int>{};
+  bool _favLoaded = false;
+
+  Set<int> get favoriteIds => _favoriteIds;
+
+  bool isFavorite(int id) => _favoriteIds.contains(id);
+
+  Future<void> _ensureFavLoaded() async {
+    if (_favLoaded) return;
+    try {
+      final saved = await FavoriteStore.getFavorites();
+      _favoriteIds
+        ..clear()
+        ..addAll(saved);
+    } catch (_) {
+      // ignore error; keep empty
+    } finally {
+      _favLoaded = true;
+    }
+  }
+
   /// Load list cerita dari SQLite (v_story_with_counts)
   Future<void> loadStories() async {
     _loading = true;
@@ -129,6 +155,9 @@ class StoryProvider extends ChangeNotifier {
     try {
       final rows = await _repo.fetchStories();
       _stories = rows.map((e) => StoryItem.fromMap(e)).toList();
+
+      // Pastikan favorit terisi dari storage saat pertama kali
+      await _ensureFavLoaded();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -169,18 +198,23 @@ class StoryProvider extends ChangeNotifier {
   // ===== FAVORIT =====
   // ====================
 
-  final Set<int> _favoriteIds = <int>{};
-  Set<int> get favoriteIds => _favoriteIds;
+  void toggleFavorite(int id) async {
+    // pastikan sudah load dari storage kalau belum
+    await _ensureFavLoaded();
 
-  bool isFavorite(int id) => _favoriteIds.contains(id);
-
-  void toggleFavorite(int id) {
     if (_favoriteIds.contains(id)) {
       _favoriteIds.remove(id);
     } else {
       _favoriteIds.add(id);
     }
     notifyListeners();
+
+    // persist ke SharedPreferences
+    try {
+      await FavoriteStore.saveFavorites(_favoriteIds);
+    } catch (_) {
+      // ignore
+    }
   }
 
   // ====================
@@ -192,10 +226,26 @@ class StoryProvider extends ChangeNotifier {
   Future<void> deleteStory(int id) async {
     // Contoh kalau kamu punya endpoint di repository:
     // try { await _repo.deleteStory(id); } catch (_) {}
-    _favoriteIds.remove(id); // cabut dari favorit kalau ada
+
+    // cabut dari favorit & persist
+    _favoriteIds.remove(id);
+    try {
+      await FavoriteStore.saveFavorites(_favoriteIds);
+    } catch (_) {
+      // ignore
+    }
+
+    // hapus dari list & hasil pencarian
     _stories.removeWhere((s) => s.id == id);
-    // kalau kamu juga pakai hasil pencarian:
     _searchResults.removeWhere((s) => s.id == id);
+
+    // bersihkan progres baca untuk story ini
+    try {
+      await ReadingProgressStore.removeStory(id);
+    } catch (_) {
+      // ignore
+    }
+
     notifyListeners();
   }
 

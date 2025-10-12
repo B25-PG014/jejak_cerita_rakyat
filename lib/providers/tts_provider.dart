@@ -40,7 +40,19 @@ class TtsProvider extends ChangeNotifier {
   Future<void> init() async {
     if (_ready) return;
 
+    // Pastikan onComplete akurat (sesuai patch)
     await _tts.awaitSpeakCompletion(true);
+
+    // ==== PATCH pengganti setAndroidAudioAttributes (yang tidak ada di versimu) ====
+    // Coba aktifkan audio focus (jika method tersedia di plugin versimu).
+    try {
+      final dyn = _tts as dynamic;
+      await dyn.setAudioFocus?.call(true); // optional, aman jika tidak ada
+    } catch (_) {
+      // Abaikan jika tidak didukung di platform/versi plugin
+    }
+    // ==============================================================================
+
     await _tts.setLanguage('id-ID');
     await _tts.setSpeechRate(0.5);
     await _tts.setPitch(1.0);
