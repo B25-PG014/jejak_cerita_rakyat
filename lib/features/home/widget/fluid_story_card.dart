@@ -97,7 +97,7 @@ class FluidStoryCard extends StatelessWidget {
                         BackdropFilter(
                           filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                           child: Container(
-                            color: Colors.black.withOpacity(.22),
+                            color: Colors.black.withValues(alpha: .22),
                           ),
                         ),
 

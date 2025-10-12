@@ -42,6 +42,7 @@ dependencies:
   fluid_action_card: ^1.0.0+5
   carousel_slider: ^5.0.0
   badges: ^3.1.2
+  countries_world_map: ^1.3.0
 
   # Aksesibilitas/penyimpanan preferensi
   shared_preferences: ^2.2.3
@@ -61,6 +62,7 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
@@ -88,10 +90,14 @@ flutter:
     - assets/images/splash/
     - assets/images/backgrounds/
     - assets/stories/
+    - assets/data/
     - assets/svg/
     - assets/stories/malin-kundang/
     - assets/stories/nenek-gabus/
     - assets/stories/ande-lumut/
+    - assets/stories/batu-menangis/
+    - assets/stories/buaya-ajaib/
+    - assets/stories/burung-kekekow/
     - assets/svg/map_indonesia_simplified.svg
   fonts:
     - family: Atkinson
@@ -140,3 +146,14 @@ flutter_native_splash:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    background_color: "#ffffff"
+    theme_color: "#FF6F3D"
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"

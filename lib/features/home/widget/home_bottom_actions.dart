@@ -67,7 +67,7 @@ class _ActionPill extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: Material(
-            color: cs.surface.withOpacity(.65),
+            color: cs.surface.withValues(alpha: .65),
             child: InkWell(
               onTap: onTap,
               child: Container(
@@ -78,12 +78,12 @@ class _ActionPill extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withOpacity(.22),
+                    color: Colors.white.withValues(alpha: .22),
                     width: 1.1,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(.16),
+                      color: Colors.black.withValues(alpha: .16),
                       blurRadius: 14,
                       offset: const Offset(0, 6),
                     ),

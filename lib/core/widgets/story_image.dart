@@ -13,13 +13,38 @@ Widget storyImage(
   String placeholder = 'assets/images/covers/default_cover.png',
   FilterQuality filterQuality = FilterQuality.medium,
 }) {
+  final hasPath = (src != null && src.trim().isNotEmpty);
+  final safePath = hasPath
+      ? src.trim()
+      : 'assets/images/covers/default_cover.png';
   if (src == null || src.isEmpty) {
+    // Downscale cerdas sesuai layar untuk hemat RAM/GPU di device low-end
+    final mq = WidgetsBinding.instance.platformDispatcher.views.isNotEmpty
+        ? MediaQueryData.fromView(
+            WidgetsBinding.instance.platformDispatcher.views.first,
+          )
+        : null;
+    final dpr = (mq?.devicePixelRatio ?? 2.0).clamp(1.0, 3.0);
+    final logicalW = (mq?.size.width ?? 360.0);
+    final targetW = (logicalW * dpr).toInt();
+    final cacheW = targetW.clamp(480, 2048);
+
     return Image.asset(
-      placeholder,
+      safePath,
       fit: fit,
       alignment: alignment,
       gaplessPlayback: gaplessPlayback,
       filterQuality: filterQuality,
+      // Downscale agar decode lebih ringan, tetap tajam di layar
+      cacheWidth: cacheW,
+      errorBuilder: (_, __, ___) => Image.asset(
+        'assets/images/covers/default_cover.png',
+        fit: fit,
+        alignment: alignment,
+        gaplessPlayback: gaplessPlayback,
+        filterQuality: filterQuality,
+        cacheWidth: cacheW,
+      ),
     );
   }
 

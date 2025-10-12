@@ -16,9 +16,9 @@ class HomeHeaderChip extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: cs.surface.withOpacity(0.85),
+        color: cs.surface.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outline.withOpacity(0.12)),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.12)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
@@ -28,7 +28,7 @@ class HomeHeaderChip extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: cs.primary.withOpacity(0.12),
+              color: cs.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.center,
@@ -50,7 +50,7 @@ class HomeHeaderChip extends StatelessWidget {
                 Text(
                   'Jelajahi warisan Nusantara',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
+                    color: cs.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ],

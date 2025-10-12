@@ -1,5 +1,6 @@
 // lib/features/reader/reader_screen.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, TextRange;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -22,30 +23,68 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final _textScroll = ScrollController();
   bool _panelExpanded = false;
   bool _openedOnce = false;
+  final ValueNotifier<bool> _autoRead = ValueNotifier<bool>(false);
+
+  // NEW: subscription selesai TTS → untuk auto-advance
+  StreamSubscription<void>? _ttsDoneSub;
 
   @override
   void initState() {
     super.initState();
-    // Pastikan TTS siap sehingga "play pertama" langsung bunyi
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<TtsProvider>().ensureReady();
+    // pastikan TTS sinopsis benar2 mati saat masuk reader
+    final tts = context.read<TtsProvider>();
+    Future.microtask(() async {
+      try {
+        await Future.any([
+          tts.stop(),
+          context.read<TtsCompatAdapter>().stop(),
+          Future.delayed(const Duration(milliseconds: 250)),
+        ]);
+      } catch (_) {}
     });
   }
 
-  // Precache image halaman berikutnya agar transisi lebih halus
-  void _precacheNextPage(BuildContext context, String? nextPath) {
-    if (nextPath == null) return;
-    final p = nextPath.trim();
-    if (p.isEmpty) return;
+  // Helpers untuk baseDir
+  String _sanitizeBaseDir(String? baseDir) {
+    var b = (baseDir ?? '').trim();
+    if (b.isEmpty) return 'assets/stories/';
+    if (!b.endsWith('/')) b = '$b/';
+    return b;
+  }
 
-    // Pilih ImageProvider sesuai sumber (URL vs asset)
+  String _stripQuotes(String s) {
+    final t = s.trim();
+    if (t.length >= 2) {
+      final a = t.codeUnitAt(0);
+      final b = t.codeUnitAt(t.length - 1);
+      if ((a == 34 && b == 34) || (a == 39 && b == 39)) {
+        return t.substring(1, t.length - 1);
+      }
+    }
+    return t;
+  }
+
+  // Precache image halaman berikutnya agar transisi lebih halus
+  void _precacheNextPage(
+    BuildContext context,
+    String? nextPath,
+    String baseDir,
+  ) {
+    if (nextPath == null) return;
+    final raw = _stripQuotes(nextPath);
+    if (raw.isEmpty) return;
+
+    final p = (raw.startsWith('assets/')
+        ? raw
+        : (raw.startsWith('http://') || raw.startsWith('https://'))
+        ? raw
+        : '${_sanitizeBaseDir(baseDir)}$raw');
+
     final ImageProvider provider =
         (p.startsWith('http://') || p.startsWith('https://'))
         ? NetworkImage(p)
         : AssetImage(p) as ImageProvider;
 
-    // Jalankan setelah frame ini supaya context sudah stabil
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       precacheImage(provider, context);
@@ -58,7 +97,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (_openedOnce) return;
     _openedOnce = true;
 
-    // Jalankan setelah widget attach supaya provider pasti ada.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
@@ -79,11 +117,34 @@ class _ReaderScreenState extends State<ReaderScreen> {
           curve: Curves.easeOut,
         );
       };
+
+      // NEW: Dengarkan selesai TTS → auto next page + speak lagi jika auto ON
+      _ttsDoneSub = tts.onComplete.listen((_) async {
+        if (!mounted) return;
+        if (!_autoRead.value) return;
+
+        final r = context.read<ReaderProvider>();
+        if (r.pages.isEmpty) return;
+        final hasNext = r.index + 1 < r.pages.length;
+        if (!hasNext) return;
+
+        r.nextPage();
+        tts.active.value = const TextRange(start: 0, end: 0);
+
+        final page = r.pages[r.index];
+        final text = (page.textPlain ?? '').trim();
+        if (text.isEmpty) return;
+
+        await Future.delayed(const Duration(milliseconds: 200));
+        await tts.stop();
+        await tts.speak(text);
+      });
     });
   }
 
   @override
   void dispose() {
+    _ttsDoneSub?.cancel();
     _textScroll.dispose();
     super.dispose();
   }
@@ -118,11 +179,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       }
                       final page = r.pages[r.index];
 
+                      // Ambil baseDir dari provider (wajib: assets/stories/[judul-cerita]/
+                      final baseDir = _sanitizeBaseDir(r.storyDir);
+
                       // Siapkan precache untuk halaman berikutnya
-                      final String? nextAsset = (r.index + 1 < r.pages.length)
+                      final String? nextRaw = (r.index + 1 < r.pages.length)
                           ? r.pages[r.index + 1].imageAsset
                           : null;
-                      _precacheNextPage(context, nextAsset);
+                      _precacheNextPage(context, nextRaw, baseDir);
 
                       return AnimatedSwitcher(
                         duration: const Duration(milliseconds: 220),
@@ -143,7 +207,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             heightFactor: 0.75,
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(14),
-                              child: _SafeStoryImage(path: page.imageAsset),
+                              child: _SafeStoryImage(
+                                path: page.imageAsset,
+                                baseDir: baseDir,
+                              ),
                             ),
                           ),
                         ),
@@ -161,6 +228,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   onToggle: () =>
                       setState(() => _panelExpanded = !_panelExpanded),
                   textScroll: _textScroll,
+                  autoReadVN: _autoRead,
                 ),
 
                 // bayangan lembut di bawah panel supaya kontras
@@ -174,7 +242,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       decoration: BoxDecoration(
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(.25),
+                            color: Colors.black.withValues(alpha: .25),
                             blurRadius: 14,
                             spreadRadius: -4,
                             offset: const Offset(0, -4),
@@ -195,24 +263,52 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
 /// Loader gambar yang "tahan banting":
 /// - URL -> network
-/// - Asset relatif: coba beberapa kandidat path; jika gagal -> placeholder.
+/// - Asset relatif: diprefix dengan baseDir: assets/stories/[judul-cerita]/
+/// - Jika gagal -> placeholder.
 class _SafeStoryImage extends StatelessWidget {
-  const _SafeStoryImage({required this.path});
+  const _SafeStoryImage({required this.path, required this.baseDir});
   final String? path;
+  final String baseDir;
 
   bool _looksLikeUrl(String p) =>
       p.startsWith('http://') || p.startsWith('https://');
 
-  Future<String?> _resolveAsset(String raw) async {
-    final base = raw.trim();
+  String _stripQuotes(String s) {
+    final t = s.trim();
+    if (t.length >= 2) {
+      final a = t.codeUnitAt(0), b = t.codeUnitAt(t.length - 1);
+      if ((a == 34 && b == 34) || (a == 39 && b == 39)) {
+        return t.substring(1, t.length - 1);
+      }
+    }
+    return t;
+  }
+
+  String _joinBase(String raw) {
+    final clean = _stripQuotes(raw);
+    if (clean.isEmpty) return clean;
+
+    if (_looksLikeUrl(clean)) return clean;
+    if (clean.startsWith('assets/')) return clean;
+
+    // kalau path relatif (mis. "p2.png" atau "img/p2.png"), prefix dengan baseDir
+    final b = baseDir.endsWith('/') ? baseDir : '$baseDir/';
+    if (clean.startsWith('/')) return '$b${clean.substring(1)}';
+    return '$b$clean';
+  }
+
+  Future<String?> _resolveAsset(String rawWithBase) async {
+    // Coba langsung
+    try {
+      await rootBundle.load(rawWithBase);
+      return rawWithBase;
+    } catch (_) {}
+
+    // Kandidat cadangan (lebih konservatif)
+    final base = rawWithBase;
     final List<String> candidates = [
       base,
-      if (!base.startsWith('assets/')) ...[
-        'assets/$base',
-        'assets/stories/$base',
-        'assets/images/$base',
-        'assets/images/stories/$base',
-      ],
+      if (!base.startsWith('assets/')) 'assets/$base',
     ];
 
     for (final c in candidates) {
@@ -228,19 +324,21 @@ class _SafeStoryImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = (path ?? '').trim();
-    if (p.isEmpty) return _placeholder(context);
+    final raw = (path ?? '').trim();
+    if (raw.isEmpty) return _placeholder(context);
 
-    if (_looksLikeUrl(p)) {
+    final resolved = _joinBase(raw);
+
+    if (_looksLikeUrl(resolved)) {
       return Image.network(
-        p,
+        resolved,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => _placeholder(context),
       );
     }
 
     return FutureBuilder<String?>(
-      future: _resolveAsset(p),
+      future: _resolveAsset(resolved),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -261,7 +359,7 @@ class _SafeStoryImage extends StatelessWidget {
   Widget _placeholder(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      color: cs.surface.withOpacity(.15),
+      color: cs.surface.withValues(alpha: .15),
       alignment: Alignment.center,
       child: Icon(
         Icons.image_not_supported_outlined,
@@ -287,15 +385,33 @@ class _TopGlassBar extends StatelessWidget {
         children: [
           _CircleIconButton(
             icon: Icons.arrow_back,
-            onTap: () => Navigator.of(context).pop(),
+            onTap: () async {
+              // stop TTS (aman dipanggil walau tidak sedang bicara)
+              try {
+                await context.read<TtsProvider>().stop();
+              } catch (_) {}
+              try {
+                await context.read<TtsCompatAdapter>().stop();
+              } catch (_) {}
+              if (context.mounted) Navigator.of(context).pop();
+            },
           ),
           Row(
             children: [
               _CircleIconButton(
                 icon: Icons.settings,
-                onTap: () => Navigator.of(context).pushNamed('/settings'),
+                onTap: () async {
+                  // Pastikan TTS berhenti sebelum masuk ke halaman Settings
+                  try {
+                    await context.read<TtsProvider>().stop();
+                  } catch (_) {}
+                  try {
+                    await context.read<TtsCompatAdapter>().stop();
+                  } catch (_) {}
+                  if (!context.mounted) return;
+                  Navigator.of(context).pushNamed('/settings');
+                },
               ),
-              // === Tombol speaker → buka pengaturan volume ===
               _CircleIconButton(
                 icon: Icons.volume_up,
                 onTap: () => _showVolumeSheet(context),
@@ -330,12 +446,15 @@ class _VolumeSheet extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          color: cs.surface.withOpacity(.92),
+          color: cs.surface.withValues(alpha: .92),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(.18), width: 1),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: .18),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.22),
+              color: Colors.black.withValues(alpha: .22),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -352,11 +471,17 @@ class _VolumeSheet extends StatelessWidget {
                   children: [
                     Icon(Icons.volume_up, color: cs.primary),
                     const SizedBox(width: 8),
-                    Text(
-                      'Volume Narasi',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    // Title dibuat Expanded agar tidak overflow saat text scale besar
+                    Expanded(
+                      child: Text(
+                        'Volume Narasi',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        textWidthBasis: TextWidthBasis.parent,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
-                    const Spacer(),
                     Text(
                       '$pct%',
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -375,23 +500,40 @@ class _VolumeSheet extends StatelessWidget {
                   label: '$pct%',
                 ),
                 const SizedBox(height: 6),
+                // Tombol-tombol dibuat responsif agar tidak overflow di text scale besar
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton.icon(
-                      onPressed: () => tts.setVolume(0.0),
-                      icon: const Icon(Icons.volume_mute),
-                      label: const Text('Bisukan'),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: TextButton.icon(
+                          onPressed: () => tts.setVolume(0.0),
+                          icon: const Icon(Icons.volume_mute),
+                          label: const Text('Bisukan'),
+                        ),
+                      ),
                     ),
-                    TextButton.icon(
-                      onPressed: () => tts.setVolume(1.0),
-                      icon: const Icon(Icons.volume_up),
-                      label: const Text('Maks'),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: TextButton.icon(
+                          onPressed: () => tts.setVolume(1.0),
+                          icon: const Icon(Icons.volume_up),
+                          label: const Text('Maks'),
+                        ),
+                      ),
                     ),
-                    FilledButton.icon(
-                      onPressed: () => tts.speak('Ini adalah uji suara.'),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Uji suara'),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: FilledButton.icon(
+                          onPressed: () => tts.speak('Ini adalah uji suara.'),
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text('Uji suara'),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -410,19 +552,29 @@ class _ReadingPanel extends StatelessWidget {
     required this.panelExpanded,
     required this.onToggle,
     required this.textScroll,
+    required this.autoReadVN,
   });
 
   final bool panelExpanded;
   final VoidCallback onToggle;
   final ScrollController textScroll;
+  final ValueNotifier<bool> autoReadVN;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final size = MediaQuery.of(context).size;
 
-    const double panelMin = 160.0; // tinggi saat collapsed
+    const double panelMinBase = 160.0; // tinggi dasar saat collapsed
     final double panelMax = size.height * .40; // tinggi saat expanded
+
+    // ==== FIX: tinggi collapsed adaptif sesuai skala teks + bantalan ekstra ====
+    final double textScale = MediaQuery.of(context).textScaler.scale(1.0);
+    // Tambah headroom ±90px per kenaikan skala + cushion 14px, dibatasi < panelMax
+    final double collapsedHeight = math.max(
+      panelMinBase + 14.0,
+      math.min(panelMax - 4.0, panelMinBase + 14.0 + (textScale - 1.0) * 90.0),
+    );
 
     return Positioned(
       left: 12,
@@ -431,14 +583,17 @@ class _ReadingPanel extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        height: panelExpanded ? panelMax : panelMin,
+        height: panelExpanded ? panelMax : collapsedHeight,
         decoration: BoxDecoration(
-          color: cs.surface.withOpacity(.88),
+          color: cs.surface.withValues(alpha: .88),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(.2), width: 1),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: .2),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.28),
+              color: Colors.black.withValues(alpha: .28),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -460,16 +615,79 @@ class _ReadingPanel extends StatelessWidget {
                         height: 3,
                         margin: const EdgeInsets.only(right: 10),
                         decoration: BoxDecoration(
-                          color: cs.onSurface.withOpacity(.25),
+                          color: cs.onSurface.withValues(alpha: .25),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
                       Expanded(
                         child: Text(
                           'Teks Halaman',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          textWidthBasis: TextWidthBasis.parent,
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                       ),
+
+                      // ======= INDICATOR + TOGGLE AUTO BACA =======
+                      ValueListenableBuilder<bool>(
+                        valueListenable: autoReadVN,
+                        builder: (_, on, __) {
+                          final c = on ? cs.primary : cs.onSurfaceVariant;
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              autoReadVN.value = !on;
+
+                              // NEW: kalau baru dinyalakan & belum bicara, mulai bacakan halaman aktif
+                              if (autoReadVN.value) {
+                                final r = context.read<ReaderProvider>();
+                                final tts = context.read<TtsProvider>();
+                                if (!tts.speaking && r.pages.isNotEmpty) {
+                                  final text =
+                                      (r.pages[r.index].textPlain ?? '').trim();
+                                  if (text.isNotEmpty) {
+                                    await tts.stop();
+                                    await tts.speak(text);
+                                  }
+                                }
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    on
+                                        ? Icons.auto_mode
+                                        : Icons.auto_mode_outlined,
+                                    size: 20,
+                                    color: c,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    on ? 'Auto: ON' : 'Auto: OFF',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: c,
+                                          fontWeight: on
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      // Tombol expand/collapse
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         onPressed: onToggle,
@@ -485,8 +703,7 @@ class _ReadingPanel extends StatelessWidget {
 
                 // Kontrol
                 const _ControlsRow(),
-                const SizedBox(height: 8),
-
+                const SizedBox(height: 4), // diperkecil agar aman
                 // === Konten teks ===
                 Expanded(
                   child: Padding(
@@ -495,6 +712,11 @@ class _ReadingPanel extends StatelessWidget {
                       builder: (_, r, __) {
                         if (r.pages.isEmpty) return const SizedBox();
                         final txt = r.pages[r.index].textPlain ?? '';
+
+                        // reset scroll ke atas saat pindah halaman
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (textScroll.hasClients) textScroll.jumpTo(0);
+                        });
 
                         if (!panelExpanded) {
                           // PREVIEW
@@ -516,7 +738,7 @@ class _ReadingPanel extends StatelessWidget {
                           context,
                         ).textTheme.bodyMedium!.copyWith(height: 1.35);
                         final hi = normal.copyWith(
-                          backgroundColor: cs.primary.withOpacity(.25),
+                          backgroundColor: cs.primary.withValues(alpha: .25),
                           fontWeight: FontWeight.w700,
                         );
 
@@ -585,39 +807,65 @@ class _ControlsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final r = context.read<ReaderProvider>();
+    // DENGARKAN ReaderProvider agar ikut rebuild saat index/page berubah
+    final r = context.watch<ReaderProvider>();
 
     return Consumer<TtsProvider>(
       builder: (_, tts, __) {
         final page = r.pages.isEmpty ? null : r.pages[r.index];
-        final text = page?.textPlain ?? '';
+        final text = (page?.textPlain ?? '').trim();
+
+        Future<void> playCurrent() async {
+          await tts.stop(); // pastikan tidak overlap
+          if (text.isEmpty) return;
+          await tts.speak(text); // speak halaman TERKINI
+        }
+
+        void afterPageChanged() {
+          tts.active.value = const TextRange(
+            start: 0,
+            end: 0,
+          ); // kosongkan highlight
+        }
 
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             IconButton.outlined(
-              onPressed: () {
-                tts.stop();
+              visualDensity: VisualDensity.compact,
+              onPressed: () async {
+                await tts.stop();
                 r.prevPage();
+                afterPageChanged();
               },
               icon: const Icon(Icons.skip_previous_rounded),
             ),
-            IconButton.outlined(
-              onPressed: () {
-                if (tts.ready) {
-                  tts.speak(text); // via compat adapter -> speakText()
-                } else {
-                  tts.stop();
-                }
+            // === Play/Stop sinkron dengan speakingVN (tidak diubah) ===
+            ValueListenableBuilder<bool>(
+              valueListenable: tts.speakingVN,
+              builder: (_, isSpeaking, __) {
+                return IconButton.outlined(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () async {
+                    if (isSpeaking) {
+                      await tts.stop();
+                    } else {
+                      await tts.stop(); // antisipasi overlap
+                      if (text.isNotEmpty) await tts.speak(text);
+                    }
+                  },
+                  icon: Icon(
+                    isSpeaking ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                  ),
+                );
               },
-              icon: Icon(
-                tts.ready ? Icons.play_arrow_rounded : Icons.stop_rounded,
-              ),
             ),
             IconButton.outlined(
-              onPressed: () {
-                tts.stop();
+              visualDensity: VisualDensity.compact,
+              onPressed: () async {
+                await tts.stop();
                 r.nextPage();
+                afterPageChanged();
               },
               icon: const Icon(Icons.skip_next_rounded),
             ),
@@ -639,12 +887,12 @@ class _EmptyStateCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: cs.surface.withOpacity(.8),
+          color: cs.surface.withValues(alpha: .8),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: .2)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.22),
+              color: Colors.black.withValues(alpha: .22),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),
@@ -694,12 +942,15 @@ class _CircleIconButton extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: cs.surface.withOpacity(0.85),
+            color: cs.surface.withValues(alpha: 0.85),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.15),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.12),
+                color: Colors.black.withValues(alpha: 0.12),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),

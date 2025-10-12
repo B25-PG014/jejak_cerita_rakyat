@@ -66,18 +66,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: cs.surface.withOpacity(0.75),
+                          color: cs.surface.withValues(alpha: 0.75),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.12),
+                              color: Colors.black.withValues(alpha: 0.12),
                               blurRadius: 16,
                               offset: const Offset(0, 8),
                               spreadRadius: -4,
                             ),
                           ],
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             width: 1,
                           ),
                         ),
@@ -142,7 +142,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         hintText: 'Cari judul atau sinopsis…',
                         prefixIcon: const Icon(Icons.search_rounded),
                         filled: true,
-                        fillColor: cs.surface.withOpacity(.75),
+                        fillColor: cs.surface.withValues(alpha: .75),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -232,7 +232,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       children: [
                         Expanded(
                           child: Material(
-                            color: cs.surface.withOpacity(0.85),
+                            color: cs.surface.withValues(alpha: 0.85),
                             borderRadius: BorderRadius.circular(14),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(14),
@@ -299,12 +299,15 @@ class _RoundIconButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: cs.surface.withOpacity(0.85),
+          color: cs.surface.withValues(alpha: 0.85),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.12),
+              color: Colors.black.withValues(alpha: 0.12),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),

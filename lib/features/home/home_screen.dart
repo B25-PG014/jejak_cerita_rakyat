@@ -7,13 +7,14 @@ import 'package:flutter/services.dart'
     show rootBundle, Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
+// >>> Map package
+import 'package:countries_world_map/countries_world_map.dart';
 
 import 'package:jejak_cerita_rakyat/features/detail/detail_screen.dart';
 import 'package:jejak_cerita_rakyat/features/library/library_screen.dart';
 import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
 
-import 'package:jejak_cerita_rakyat/core/utils/svg_anchor_loader.dart';
 import 'package:jejak_cerita_rakyat/features/settings/setting_screen.dart';
 
 import 'widget/home_header_chip.dart';
@@ -68,6 +69,153 @@ const Map<String, Offset> kProvinceCenters = {
   'Papua': Offset(0.735, 0.545),
 };
 
+/// =======================
+/// Normalizer nama → id map
+/// =======================
+
+const Map<String, String> _aliasToCanonical = {
+  'ntb': 'nusa tenggara barat',
+  'ntt': 'nusa tenggara timur',
+  'dki jakarta': 'dki jakarta',
+  'di yogyakarta': 'di yogyakarta',
+};
+
+String _normalizeName(String raw) {
+  var s = raw.toLowerCase().trim();
+  if (s.startsWith('provinsi ')) {
+    s = s.substring('provinsi '.length);
+  }
+  s = s.replaceAll(RegExp(r'\s+'), ' ');
+  if (_aliasToCanonical.containsKey(s)) s = _aliasToCanonical[s]!;
+  return s;
+}
+
+// === PENTING: gunakan ISO-3166-2 (ID-XX) sesuai callback SimpleMap ===
+const Map<String, String> _canonicalToMapId = {
+  // Sumatera
+  'aceh': 'ID-AC',
+  'sumatera utara': 'ID-SU',
+  'sumatera barat': 'ID-SB',
+  'riau': 'ID-RI',
+  'kepulauan riau': 'ID-KR',
+  'jambi': 'ID-JA',
+  'sumatera selatan': 'ID-SS',
+  'bengkulu': 'ID-BE',
+  'lampung': 'ID-LA',
+  'bangka belitung': 'ID-BB',
+
+  // Jawa
+  'banten': 'ID-BT',
+  'dki jakarta': 'ID-JK',
+  'jawa barat': 'ID-JB',
+  'jawa tengah': 'ID-JT',
+  'di yogyakarta': 'ID-YO',
+  'jawa timur': 'ID-JI',
+
+  // Bali & Nusa
+  'bali': 'ID-BA',
+  'nusa tenggara barat': 'ID-NB',
+  'nusa tenggara timur': 'ID-NT',
+
+  // Kalimantan
+  'kalimantan barat': 'ID-KB',
+  'kalimantan tengah': 'ID-KT',
+  'kalimantan selatan': 'ID-KS',
+  'kalimantan timur': 'ID-KI',
+  'kalimantan utara': 'ID-KU',
+
+  // Sulawesi
+  'sulawesi utara': 'ID-SA',
+  'gorontalo': 'ID-GO',
+  'sulawesi tengah': 'ID-ST',
+  'sulawesi barat': 'ID-SR',
+  'sulawesi selatan': 'ID-SN',
+  'sulawesi tenggara': 'ID-SG',
+
+  // Maluku & Papua (versi baru)
+  'maluku utara': 'ID-MU',
+  'maluku': 'ID-MA',
+  'papua barat daya': 'ID-PD',
+  'papua barat': 'ID-PB',
+  'papua tengah': 'ID-PT',
+  'papua selatan': 'ID-PS',
+  'papua pegunungan': 'ID-PP',
+
+  // Papua (fallback peta lama)
+  'papua': 'ID-PA',
+};
+
+String? _mapIdForName(String nameFromData) {
+  final canon = _normalizeName(nameFromData);
+  return _canonicalToMapId[canon];
+}
+
+/// Map nama provinsi (dipakai di beberapa tempat) → ISO-3166-2
+const Map<String, String> kIndoNameToMapId = {
+  // Sumatera
+  'Aceh': 'ID-AC',
+  'Sumatera Utara': 'ID-SU',
+  'Sumatera Barat': 'ID-SB',
+  'Riau': 'ID-RI',
+  'Kepulauan Riau': 'ID-KR',
+  'Jambi': 'ID-JA',
+  'Sumatera Selatan': 'ID-SS',
+  'Bengkulu': 'ID-BE',
+  'Lampung': 'ID-LA',
+  'Bangka Belitung': 'ID-BB',
+
+  // Jawa
+  'Banten': 'ID-BT',
+  'DKI Jakarta': 'ID-JK',
+  'Jawa Barat': 'ID-JB',
+  'Jawa Tengah': 'ID-JT',
+  'DI Yogyakarta': 'ID-YO',
+  'Jawa Timur': 'ID-JI',
+
+  // Bali & Nusa
+  'Bali': 'ID-BA',
+  'Nusa Tenggara Barat': 'ID-NB',
+  'Nusa Tenggara Timur': 'ID-NT',
+
+  // Kalimantan
+  'Kalimantan Barat': 'ID-KB',
+  'Kalimantan Tengah': 'ID-KT',
+  'Kalimantan Selatan': 'ID-KS',
+  'Kalimantan Timur': 'ID-KI',
+  'Kalimantan Utara': 'ID-KU',
+
+  // Sulawesi
+  'Sulawesi Utara': 'ID-SA',
+  'Gorontalo': 'ID-GO',
+  'Sulawesi Tengah': 'ID-ST',
+  'Sulawesi Barat': 'ID-SR',
+  'Sulawesi Selatan': 'ID-SN',
+  'Sulawesi Tenggara': 'ID-SG',
+
+  // Maluku & Papua
+  'Maluku Utara': 'ID-MU',
+  'Maluku': 'ID-MA',
+  'Papua Barat Daya': 'ID-PD',
+  'Papua Barat': 'ID-PB',
+  'Papua Tengah': 'ID-PT',
+  'Papua Selatan': 'ID-PS',
+  'Papua Pegunungan': 'ID-PP',
+  'Papua': 'ID-PA',
+};
+
+/// =======================
+/// Konten info provinsi (opsional)
+/// =======================
+const Map<String, String> kProvinceInfo = {
+  'Jawa Timur':
+      '🌋 **Jawa Timur — Tanah Legenda dan Petualangan!**\n\n'
+      'Dari puncak Gunung Bromo yang gagah hingga ombak Pantai Papuma yang memesona, Jawa Timur menyimpan sejuta cerita!\n'
+      'Di sinilah lahir kisah *Roro Anteng dan Joko Seger*, *Jaka Tarub*, hingga *Ande-Ande Lumut*—cerita rakyat penuh keajaiban dan pesan moral.\n\n'
+      'Anak-anak bisa belajar tentang keberanian, kejujuran, dan kasih sayang.\n'
+      'Orang dewasa pun bisa bernostalgia dengan budaya dan sejarah Nusantara yang masih hidup hingga kini.\n\n'
+      '✨ *Jelajahi Jawa Timur, temukan jejak cerita yang menunggu untuk dibaca dan didengar!*',
+};
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -79,22 +227,17 @@ class _HomeScreenState extends State<HomeScreen> {
   static const double _cardHeight = 340;
   static const double _cardRadiusMask = 22;
 
+  // -> atur tinggi peta di sini
   static const double _mapScale = 1.00;
-  static const double _mapContentVPad = 50;
+  static const double _mapContentVPad = 70; // tambah = peta lebih tinggi
   static const double _mapExtraHeight = 30;
+
   static const String _defaultCoverPath =
       'assets/images/covers/default_cover.png';
 
   double? _svgAspect;
   bool _debugTap = false;
   bool _didKick = false;
-
-  // anchors dinamis dari SVG + nudge opsional
-  Map<String, Offset> _svgAnchors = const {};
-  final Map<String, Offset> _anchorNudges = const {
-    // contoh micro-adjust:
-    // 'Bali': Offset(0.002, -0.003),
-  };
 
   // Data & filter
   List<StoryItem> _featuredValid = [];
@@ -118,11 +261,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await context.read<StoryProvider>().loadProvincePins();
+      // Hindari use_build_context_synchronously: ambil provider dulu
+      final sp = context.read<StoryProvider>();
+      await sp.loadProvincePins();
       await _loadSvgAspect();
-      _svgAnchors = await loadSvgAnchors(
-        'assets/svg/map_indonesia_simplified.svg',
-      );
       if (mounted) setState(() {});
     });
   }
@@ -179,12 +321,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -------- Validasi cover + bangun index provinsi --------
   bool _hasCoverString(StoryItem s) {
-    var p = s.coverAsset?.trim();
-    if (p == null || p.isEmpty) return false;
+    final p = (s.coverAsset).trim(); // <— aman & tidak perlu cek null
+    if (p.isEmpty) return false;
     if ((p.startsWith('"') && p.endsWith('"')) ||
         (p.startsWith("'") && p.endsWith("'"))) {
-      p = p.substring(1, p.length - 1).trim();
-      if (p.isEmpty) return false;
+      final content = p.substring(1, p.length - 1).trim();
+      if (content.isEmpty) return false;
+      if (content == _defaultCoverPath) return false;
+      return true;
     }
     if (p == _defaultCoverPath) return false;
     return true;
@@ -231,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _makeStoriesKey(List<StoryItem> stories) =>
-      stories.map((s) => '${s.id}:${s.coverAsset ?? ''}').join('|');
+      stories.map((s) => '${s.id}:${s.coverAsset}').join('|');
 
   void _scheduleValidateFeatured(BuildContext ctx, List<StoryItem> allStories) {
     final candidates = allStories.where(_hasCoverString).toList();
@@ -248,7 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final limit = candidates.length.clamp(0, 50);
       for (int i = 0; i < limit; i++) {
         final s = candidates[i];
-        final p = s.coverAsset?.trim() ?? '';
+        final p = s.coverAsset.trim();
         final good = await _coverLoads(ctx, p);
         if (good) ok.add(s);
       }
@@ -296,13 +440,13 @@ class _HomeScreenState extends State<HomeScreen> {
       List<StoryItem> res = [];
       if (qq.isNotEmpty) {
         res = all.where((s) {
-          final title = (s.title ?? '').toLowerCase();
+          final title = (s.title).toLowerCase();
           return title.contains(qq);
         }).toList();
 
         res.sort((a, b) {
-          final ta = (a.title ?? '').toLowerCase();
-          final tb = (b.title ?? '').toLowerCase();
+          final ta = (a.title).toLowerCase();
+          final tb = (b.title).toLowerCase();
           final aStarts = ta.startsWith(qq) ? 0 : 1;
           final bStarts = tb.startsWith(qq) ? 0 : 1;
           if (aStarts != bStarts) return aStarts - bStarts;
@@ -323,12 +467,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _showSearchBar = !_showSearchBar;
     });
     if (_showSearchBar) {
-      // fokuskan field dan tampilkan keyboard
       Future.delayed(const Duration(milliseconds: 150), () {
         if (mounted) _searchFocus.requestFocus();
       });
     } else {
-      // tutup & reset hasil
       _searchCtrl.clear();
       _onSearchChanged('');
       _searchFocus.unfocus();
@@ -356,7 +498,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.35),
+      barrierColor: Colors.black.withValues(alpha: 0.35),
       builder: (ctx) {
         final theme = Theme.of(ctx);
         final h = MediaQuery.of(ctx).size.height * 0.60;
@@ -381,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.20),
+                      color: Colors.black.withValues(alpha: 0.20),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -397,7 +539,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.onSurface.withOpacity(0.2),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -438,11 +582,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               padding: const EdgeInsets.only(top: 10),
                               child: Material(
                                 color: selected
-                                    ? theme.colorScheme.primary.withOpacity(
-                                        0.08,
+                                    ? theme.colorScheme.primary.withValues(
+                                        alpha: 0.08,
                                       )
-                                    : theme.colorScheme.surfaceVariant
-                                          .withOpacity(0.25),
+                                    : theme.colorScheme.surfaceContainerHighest
+                                          .withValues(alpha: 0.25),
                                 borderRadius: BorderRadius.circular(12),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(12),
@@ -476,7 +620,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           backgroundColor: theme
                                               .colorScheme
                                               .primary
-                                              .withOpacity(0.10),
+                                              .withValues(alpha: 0.10),
                                           materialTapTargetSize:
                                               MaterialTapTargetSize.shrinkWrap,
                                         ),
@@ -530,6 +674,207 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // === Helper: warna highlight untuk SimpleMap (MERAH) ===
+  Map<String, Color> _buildRegionColorsForPins(
+    BuildContext context,
+    List<ProvincePin> pins,
+  ) {
+    const Color highlight = Colors.red;
+    final Map<String, Color> out = {};
+    for (final p in pins) {
+      final id = _mapIdForName(p.name) ?? kIndoNameToMapId[p.name];
+      if (id != null) {
+        out[id] = highlight;
+      } else {
+        // ignore: avoid_print
+        print(
+          'MapId NOT FOUND for "${p.name}" (normalized: "${_normalizeName(p.name)}")',
+        );
+      }
+    }
+    return out;
+  }
+
+  // === Bottom sheet: daftar cerita per provinsi ===
+  Future<void> _showProvinceStoriesSheet(String provinceName) async {
+    final list = _provIndex[provinceName] ?? const <StoryItem>[];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final h = MediaQuery.of(ctx).size.height * 0.70;
+
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+            Center(
+              child: Container(
+                height: h,
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.20),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Cerita di $provinceName',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              icon: const Icon(Icons.close_rounded),
+                              tooltip: 'Tutup',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Expanded(
+                        child: list.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Text(
+                                    'Belum ada cerita ber-cover untuk provinsi ini.',
+                                    style: theme.textTheme.bodyMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  12,
+                                  16,
+                                ),
+                                itemCount: list.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (_, i) {
+                                  final s = list[i];
+                                  final String p = (s.coverAsset).trim();
+                                  Widget thumb;
+                                  if (p.toLowerCase().startsWith('assets/')) {
+                                    thumb = Image.asset(p, fit: BoxFit.cover);
+                                  } else if (p.toLowerCase().startsWith(
+                                    'http',
+                                  )) {
+                                    thumb = Image.network(p, fit: BoxFit.cover);
+                                  } else {
+                                    thumb = const ColoredBox(
+                                      color: Colors.black12,
+                                    );
+                                  }
+
+                                  return Material(
+                                    color: theme
+                                        .colorScheme
+                                        .surfaceContainerHighest
+                                        .withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(12),
+                                      onTap: () {
+                                        Navigator.of(ctx).pop();
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                DetailScreen(data: s),
+                                          ),
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(10),
+                                        child: Row(
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: SizedBox(
+                                                width: 64,
+                                                height: 90,
+                                                child: thumb,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                s.title,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                              Icons.chevron_right_rounded,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<StoryProvider>();
@@ -537,7 +882,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _scheduleValidateFeatured(context, stories);
 
-    // Jika ada query, tampilkan hasil search; jika tidak, featured/visible default
     final featured = _searchQuery.trim().isNotEmpty
         ? _searchResults
         : _visibleStories;
@@ -557,13 +901,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     final aspect = _svgAspect ?? (16 / 9);
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
         if (_showSearchBar) {
           _toggleSearchBar();
-          return false;
+          return;
         }
-        return true;
       },
       child: Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
@@ -581,7 +926,6 @@ class _HomeScreenState extends State<HomeScreen> {
             SafeArea(
               child: Column(
                 children: [
-                  // Header: ikon search men-toggle kolom search
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                     child: HomeHeaderChip(
@@ -596,7 +940,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  // Kolom search: hanya muncul setelah ikon ditekan
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 220),
                     switchInCurve: Curves.easeOutCubic,
@@ -647,7 +990,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     CenterPageEnlargeStrategy.height,
                                 enlargeFactor: 0.42,
                                 onPageChanged: (i, _) {
-                                  setState(() => _current = i);
+                                  setState(() {
+                                    _current = i;
+                                  });
                                 },
                               ),
                               itemBuilder: (ctx, i, _) {
@@ -749,12 +1094,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   ),
                                               builder: (context) => Stack(
                                                 children: [
-                                                  Positioned.fill(
-                                                    child: SvgPicture.asset(
-                                                      'assets/svg/map_indonesia_simplified.svg',
-                                                      fit: BoxFit.contain,
-                                                    ),
-                                                  ),
                                                   if (currentStory != null)
                                                     Positioned.fill(
                                                       child: FutureBuilder<List<ProvincePin>>(
@@ -769,84 +1108,116 @@ class _HomeScreenState extends State<HomeScreen> {
                                                               currentStory.id,
                                                             ),
                                                         builder: (context, snap) {
-                                                          if (snap.connectionState ==
-                                                              ConnectionState
-                                                                  .waiting) {
-                                                            return const SizedBox.shrink();
-                                                          }
                                                           final pins =
                                                               snap.data ??
                                                               const <
                                                                 ProvincePin
                                                               >[];
-
-                                                          final mapped =
-                                                              pins.map<
-                                                                (
-                                                                  String,
-                                                                  double,
-                                                                  double,
-                                                                )
-                                                              >((p) {
-                                                                final off =
-                                                                    _svgAnchors[p
-                                                                        .name] ??
-                                                                    kProvinceCenters[p
-                                                                        .name] ??
-                                                                    const Offset(
-                                                                      0.5,
-                                                                      0.5,
-                                                                    );
-                                                                final nudge =
-                                                                    _anchorNudges[p
-                                                                        .name] ??
-                                                                    Offset.zero;
-                                                                final x =
-                                                                    (off.dx +
-                                                                            nudge.dx)
-                                                                        .clamp(
-                                                                          0.0,
-                                                                          1.0,
-                                                                        );
-                                                                final y =
-                                                                    (off.dy +
-                                                                            nudge.dy)
-                                                                        .clamp(
-                                                                          0.0,
-                                                                          1.0,
-                                                                        );
-                                                                return (
-                                                                  p.name,
-                                                                  x,
-                                                                  y,
-                                                                );
-                                                              }).toList();
-
-                                                          return _PinsLayerAdaptive(
-                                                            contentAspect:
-                                                                aspect,
-                                                            pins: mapped,
-                                                            showNameLabel: true,
-                                                            showDebugLabel:
-                                                                _debugTap,
-                                                            onTapPin: (name) {
-                                                              ScaffoldMessenger.of(
+                                                          final regionColors =
+                                                              _buildRegionColorsForPins(
                                                                 context,
-                                                              ).showSnackBar(
-                                                                SnackBar(
-                                                                  behavior:
-                                                                      SnackBarBehavior
-                                                                          .floating,
-                                                                  content: Text(
-                                                                    'Provinsi: $name',
+                                                                pins,
+                                                              );
+
+                                                          final Set<String>
+                                                          highlightedIds = {
+                                                            for (final p
+                                                                in pins)
+                                                              (_mapIdForName(
+                                                                        p.name,
+                                                                      ) ??
+                                                                      kIndoNameToMapId[p
+                                                                          .name]) ??
+                                                                  '',
+                                                          }..removeWhere((e) => e.isEmpty);
+
+                                                          return Stack(
+                                                            children: [
+                                                              Positioned.fill(
+                                                                child: SimpleMap(
+                                                                  instructions:
+                                                                      SMapIndonesia
+                                                                          .instructions,
+                                                                  defaultColor:
+                                                                      Colors
+                                                                          .green,
+                                                                  colors:
+                                                                      regionColors,
+                                                                  callback:
+                                                                      (
+                                                                        id,
+                                                                        name,
+                                                                        details,
+                                                                      ) {
+                                                                        if (highlightedIds
+                                                                            .contains(
+                                                                              id,
+                                                                            )) {
+                                                                          _showProvinceStoriesSheet(
+                                                                            name,
+                                                                          );
+                                                                        }
+                                                                      },
+                                                                ),
+                                                              ),
+                                                              if (pins
+                                                                  .isNotEmpty)
+                                                                Positioned.fill(
+                                                                  child: _ProvinceLabelsOverlay(
+                                                                    contentAspect:
+                                                                        aspect,
+                                                                    labels: [
+                                                                      for (final p
+                                                                          in pins)
+                                                                        if (kProvinceCenters[p.name] !=
+                                                                            null)
+                                                                          (
+                                                                            p.name,
+                                                                            kProvinceCenters[p.name]!.dx,
+                                                                            kProvinceCenters[p.name]!.dy,
+                                                                          ),
+                                                                    ],
+                                                                    onTap: (nm) {
+                                                                      final id =
+                                                                          _mapIdForName(
+                                                                            nm,
+                                                                          ) ??
+                                                                          kIndoNameToMapId[nm];
+                                                                      if (id !=
+                                                                              null &&
+                                                                          highlightedIds.contains(
+                                                                            id,
+                                                                          )) {
+                                                                        _showProvinceStoriesSheet(
+                                                                          nm,
+                                                                        );
+                                                                      }
+                                                                    },
                                                                   ),
                                                                 ),
-                                                              );
-                                                            },
+                                                            ],
                                                           );
                                                         },
                                                       ),
+                                                    )
+                                                  else
+                                                    Positioned.fill(
+                                                      child: SimpleMap(
+                                                        instructions:
+                                                            SMapIndonesia
+                                                                .instructions,
+                                                        defaultColor:
+                                                            Colors.green,
+                                                        colors: const {},
+                                                        callback:
+                                                            (
+                                                              id,
+                                                              name,
+                                                              details,
+                                                            ) {},
+                                                      ),
                                                     ),
+
                                                   Positioned.fill(
                                                     child: GestureDetector(
                                                       behavior: HitTestBehavior
@@ -977,18 +1348,22 @@ class _SearchField extends StatelessWidget {
                     )
                   : null,
               filled: true,
-              fillColor: cs.surfaceVariant.withOpacity(0.35),
+              fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.35),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 10,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: cs.outline.withOpacity(0.2)),
+                borderSide: BorderSide(
+                  color: cs.outline.withValues(alpha: 0.2),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: cs.outline.withOpacity(0.2)),
+                borderSide: BorderSide(
+                  color: cs.outline.withValues(alpha: 0.2),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1050,13 +1425,13 @@ class _MapCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  cs.surfaceVariant.withOpacity(0.35),
-                  cs.surfaceVariant.withOpacity(0.10),
+                  cs.surfaceContainerHighest.withValues(alpha: 0.35),
+                  cs.surfaceContainerHighest.withValues(alpha: 0.10),
                 ],
               ),
             ),
           ),
-          Container(color: cs.surface.withOpacity(0.08)),
+          Container(color: cs.surface.withValues(alpha: 0.08)),
           Positioned.fill(
             child: Padding(padding: contentPadding, child: builder(context)),
           ),
@@ -1065,7 +1440,7 @@ class _MapCard extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   width: 1,
                 ),
               ),
@@ -1073,113 +1448,6 @@ class _MapCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Layer yang menghitung letterbox sekali, lalu tempatkan banyak pin (untuk cerita aktif)
-class _PinsLayerAdaptive extends StatelessWidget {
-  final double contentAspect;
-  final List<(String name, double x, double y)> pins; // 0..1
-  final bool showNameLabel;
-  final bool showDebugLabel;
-  final void Function(String name) onTapPin;
-
-  const _PinsLayerAdaptive({
-    required this.contentAspect,
-    required this.pins,
-    required this.showNameLabel,
-    required this.showDebugLabel,
-    required this.onTapPin,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return LayoutBuilder(
-      builder: (context, c) {
-        final W = c.maxWidth;
-        final H = c.maxHeight;
-        if (W <= 0 || H <= 0) return const SizedBox.shrink();
-
-        final boxAspect = W / H;
-        double innerW = W, innerH = H, offX = 0, offY = 0;
-
-        if (boxAspect > contentAspect) {
-          innerH = H;
-          innerW = H * contentAspect;
-          offX = (W - innerW) / 2;
-        } else if (boxAspect < contentAspect) {
-          innerW = W;
-          innerH = W / contentAspect;
-          offY = (H - innerH) / 2;
-        }
-
-        return Stack(
-          children: [
-            for (final (name, x, y) in pins)
-              Positioned(
-                left: offX + x * innerW - 14,
-                top: offY + y * innerH - 24,
-                child: GestureDetector(
-                  onTap: () => onTapPin(name),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (showNameLabel)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          margin: const EdgeInsets.only(bottom: 4),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surface.withOpacity(0.90),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            name,
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                        ),
-                      if (showDebugLabel)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          margin: const EdgeInsets.only(bottom: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '(x:${x.toStringAsFixed(3)}, y:${y.toStringAsFixed(3)})',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ),
-                      Icon(
-                        Icons.location_on_rounded,
-                        size: 28,
-                        color: cs.primary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
     );
   }
 }
@@ -1227,6 +1495,75 @@ class _TapToRelOverlayAdaptive extends StatelessWidget {
   }
 }
 
+class _ProvinceLabelsOverlay extends StatelessWidget {
+  final double contentAspect;
+  final List<(String name, double x, double y)> labels;
+  final void Function(String name)? onTap;
+
+  const _ProvinceLabelsOverlay({
+    required this.contentAspect,
+    required this.labels,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final W = c.maxWidth, H = c.maxHeight;
+        final boxAspect = W / H;
+        double innerW = W, innerH = H, offX = 0, offY = 0;
+
+        if (boxAspect > contentAspect) {
+          innerH = H;
+          innerW = H * contentAspect;
+          offX = (W - innerW) / 2;
+        } else if (boxAspect < contentAspect) {
+          innerW = W;
+          innerH = W / contentAspect;
+          offY = (H - innerH) / 2;
+        }
+
+        return Stack(
+          children: [
+            for (final (name, xr, yr) in labels)
+              Positioned(
+                left: offX + xr * innerW - 40,
+                top: offY + yr * innerH - 28,
+                child: GestureDetector(
+                  onTap: onTap == null ? null : () => onTap!(name),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      name,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _BottomBarWithRegion extends StatelessWidget {
   const _BottomBarWithRegion({
     required this.onTapRegion,
@@ -1243,7 +1580,7 @@ class _BottomBarWithRegion extends StatelessWidget {
       children: [
         Expanded(
           child: Material(
-            color: cs.surface.withOpacity(0.85),
+            color: cs.surface.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               onTap: onTapRegion,
@@ -1271,7 +1608,7 @@ class _BottomBarWithRegion extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Material(
-            color: cs.surface.withOpacity(0.85),
+            color: cs.surface.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               onTap: onTapList,

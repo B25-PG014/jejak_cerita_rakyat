@@ -28,7 +28,7 @@ class BookRowCardBasic extends StatelessWidget {
     final cs = theme.colorScheme;
 
     return Material(
-      color: cs.surface.withOpacity(.75),
+      color: cs.surface.withValues(alpha: .75),
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -177,12 +177,15 @@ class _CircleIconButton extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: cs.surface.withOpacity(0.85),
+          color: cs.surface.withValues(alpha: 0.85),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.12),
+              color: Colors.black.withValues(alpha: .12),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

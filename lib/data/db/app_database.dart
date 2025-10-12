@@ -235,27 +235,27 @@ class AppDatabase {
       return id;
     }
 
-    await db.transaction((txn) async {
-      await addStoryFromSimple(
-        slug: 'malin-kundang',
-        title: 'Malin Kundang',
-        subtitle: 'Legenda anak durhaka dari Minangkabau',
-        synopsis:
-            'Anak yang merantau dan lupa pada ibunya hingga mendapat kutukan.',
-        coverAsset: 'assets/images/covers/malin.png',
-        content: _malinText,
-      );
-
-      await addStoryFromSimple(
-        slug: 'nenek-tua-dan-ikan-gabus',
-        title: 'Nenek Tua dan Ikan Gabus',
-        subtitle: 'Kebaikan yang dibalas keajaiban',
-        synopsis:
-            'Seorang nenek menolong ikan gabus—kebaikan hati membawa berkah.',
-        coverAsset: 'assets/images/covers/nenek_ikan_gabus.png',
-        content: _nenekText,
-      );
-    });
+    // await db.transaction((txn) async {
+    //   await addStoryFromSimple(
+    //     slug: 'malin-kundang',
+    //     title: 'Malin Kundang',
+    //     subtitle: 'Legenda anak durhaka dari Minangkabau',
+    //     synopsis:
+    //         'Anak yang merantau dan lupa pada ibunya hingga mendapat kutukan.',
+    //     coverAsset: 'assets/images/covers/malin.png',
+    //     content: _malinText,
+    //   );
+    //
+    //   // await addStoryFromSimple(
+    //   //   slug: 'nenek-tua-dan-ikan-gabus',
+    //   //   title: 'Nenek Tua dan Ikan Gabus',
+    //   //   subtitle: 'Kebaikan yang dibalas keajaiban',
+    //   //   synopsis:
+    //   //       'Seorang nenek menolong ikan gabus—kebaikan hati membawa berkah.',
+    //   //   coverAsset: 'assets/images/covers/nenek_ikan_gabus.png',
+    //   //   content: _nenekText,
+    //   // );
+    // });
   }
 
   Future<List<Map<String, dynamic>>> getStoryList() async {
@@ -453,13 +453,13 @@ String _page1ImageFor(String coverAsset) => 'assets/images/ui/page1.png';
 String _page2ImageFor(String coverAsset) => 'assets/images/ui/page2.png';
 
 // -------------------- Konten gaya “kode kedua” --------------------
-const String _malinText =
-    'Alkisah, Malin Kundang merantau dan lupa pada ibunya... '
-    'Pada akhirnya ia dikutuk menjadi batu di tepi pantai.';
+// const String _malinText =
+//     'Alkisah, Malin Kundang merantau dan lupa pada ibunya... '
+//     'Pada akhirnya ia dikutuk menjadi batu di tepi pantai.';
 
-const String _nenekText =
-    'Seorang nenek menolong seekor ikan gabus yang ternyata jelmaan... '
-    'Kebaikan hati membawa berkah bagi sang nenek.';
+// const String _nenekText =
+//     'Seorang nenek menolong seekor ikan gabus yang ternyata jelmaan... '
+//     'Kebaikan hati membawa berkah bagi sang nenek.';
 
 Future<void> _createV3(Database db) async {
   // Master provinsi + koordinat relatif (0..1) terhadap SVG peta

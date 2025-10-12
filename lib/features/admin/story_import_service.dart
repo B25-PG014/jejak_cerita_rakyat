@@ -299,7 +299,7 @@ class StoryImportService {
           provinceId =
               await _repo.findProvinceIdByName(item) ??
               await _repo.upsertProvinceByName(name: item);
-          if (provinceId != null) touchedProvince = true;
+          if (provinceId > 0) touchedProvince = true;
         } else if (item is Map) {
           final name = (item['name'] ?? '').toString().trim();
           final idVal = item['id'];
@@ -321,7 +321,7 @@ class StoryImportService {
               xRel: xr,
               yRel: yr,
             );
-            if (provinceId != null) touchedProvince = true;
+            if (provinceId > 0) touchedProvince = true;
           }
         }
         if (provinceId != null) {
@@ -375,8 +375,9 @@ class StoryImportService {
           if (await candidate1.exists()) {
             final appDocs = await getApplicationDocumentsDirectory();
             final storyDir = Directory(p.join(appDocs.path, 'stories', slug));
-            if (!await storyDir.exists())
+            if (!await storyDir.exists()) {
               await storyDir.create(recursive: true);
+            }
             final dstName = pageNo == null
                 ? 'cover${p.extension(candidate1.path)}'
                 : 'page_$pageNo${p.extension(candidate1.path)}';
@@ -388,8 +389,9 @@ class StoryImportService {
           if (await candidate2.exists()) {
             final appDocs = await getApplicationDocumentsDirectory();
             final storyDir = Directory(p.join(appDocs.path, 'stories', slug));
-            if (!await storyDir.exists())
+            if (!await storyDir.exists()) {
               await storyDir.create(recursive: true);
+            }
             final dstName = pageNo == null
                 ? 'cover${p.extension(candidate2.path)}'
                 : 'page_$pageNo${p.extension(candidate2.path)}';

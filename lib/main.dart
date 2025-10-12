@@ -7,6 +7,7 @@ import 'providers/settings_provider.dart';
 import 'providers/story_provider.dart';
 import 'providers/reader_provider.dart';
 import 'providers/tts_provider.dart';
+import 'services/seed_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,13 +15,17 @@ void main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 80 << 20; // ~60MB
   // Ensure DB ready before runApp (not strictly required, but nice to warmup)
   await AppDatabase.instance.database;
+  final repo = StoryRepository(AppDatabase.instance);
+  final seeder = SeedService(repo);
+  await seeder.runOnce();
 
   runApp(
     MultiProvider(
       providers: [
         // Low-level singletons/repositories
-        Provider<StoryRepository>(
-          create: (_) => StoryRepository(AppDatabase.instance),
+        Provider<StoryRepository>(create: (_) => repo),
+        ChangeNotifierProvider<StoryProvider>(
+          create: (ctx) => StoryProvider(repo: repo)..loadStories(),
         ),
         // App-level settings/state
         ChangeNotifierProvider<SettingsProvider>(

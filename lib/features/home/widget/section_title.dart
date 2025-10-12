@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -41,8 +40,8 @@ class SectionTitle extends StatelessWidget {
       ..style = PaintingStyle.stroke
       ..strokeWidth = isDark ? 1.1 : 0.9
       ..color = isDark
-          ? Colors.white.withOpacity(.20)
-          : Colors.black.withOpacity(.16);
+          ? Colors.white.withValues(alpha: .20)
+          : Colors.black.withValues(alpha: .16);
 
     // Auto width underline: ~36% dari layar (80..180 px)
     final screenW = MediaQuery.of(context).size.width;
@@ -69,7 +68,7 @@ class SectionTitle extends StatelessWidget {
             Text(
               caption!,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: cs.onSurface.withOpacity(.60),
+                color: cs.onSurface.withValues(alpha: .60),
               ),
             ),
           ],

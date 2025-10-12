@@ -16,15 +16,28 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Jejak Cerita Rakyat',
       debugShowCheckedModeBanner: false,
+      // ==== Penting: Clamp text scale agar tidak memicu overflow di layout ====
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        // Rentang aman 0.8–1.6; bisa disesuaikan jika perlu
+        final clampedScaler = mq.textScaler.clamp(
+          minScaleFactor: 0.8,
+          maxScaleFactor: 1.6,
+        );
+        return MediaQuery(
+          data: mq.copyWith(textScaler: clampedScaler),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       themeMode: settings.themeMode,
       theme: ThemeData(
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ButtonStyle(
-            padding: WidgetStatePropertyAll(
+            padding: const WidgetStatePropertyAll(
               EdgeInsets.only(left: 8, right: 8, top: 2, bottom: 2),
             ),
             backgroundColor: WidgetStatePropertyAll(Colors.blueAccent.shade400),
-            foregroundColor: WidgetStatePropertyAll(Colors.white),
+            foregroundColor: const WidgetStatePropertyAll(Colors.white),
           ),
         ),
         scaffoldBackgroundColor: Colors.white,
@@ -44,11 +57,11 @@ class MyApp extends StatelessWidget {
       darkTheme: ThemeData(
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ButtonStyle(
-            padding: WidgetStatePropertyAll(
+            padding: const WidgetStatePropertyAll(
               EdgeInsets.only(left: 8, right: 8, top: 2, bottom: 2),
             ),
             backgroundColor: WidgetStatePropertyAll(Colors.blueAccent.shade400),
-            foregroundColor: WidgetStatePropertyAll(Colors.white),
+            foregroundColor: const WidgetStatePropertyAll(Colors.white),
           ),
         ),
         scaffoldBackgroundColor: Colors.black,
