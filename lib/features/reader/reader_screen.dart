@@ -17,6 +17,94 @@ import 'package:jejak_cerita_rakyat/core/local/reading_progress_store.dart';
 import 'package:jejak_cerita_rakyat/providers/story_provider.dart';
 import 'package:jejak_cerita_rakyat/features/library/library_screen.dart';
 
+// ======= DEBUG HELPERS =======
+// set false untuk mematikan semua log
+const bool kTtsDebug = false;
+
+@pragma('vm:prefer-inline')
+void dlog(String msg) {
+  if (kTtsDebug) debugPrint('[TTSDBG] $msg');
+}
+
+@pragma('vm:prefer-inline')
+String shortStr(String s, [int n = 48]) {
+  if (s.length <= n) return s.replaceAll('\n', '⏎');
+  return '${s.substring(0, n).replaceAll('\n', '⏎')}…';
+}
+
+// ======= MODE PILIHAN =======
+// Gunakan mode “smooth follow” agar highlight mulus mengikuti durasi estimasi,
+// cocok untuk voice natural (progress event sering tidak stabil).
+const bool kUseSmoothFollow = true; // <- aktifkan natural mode untuk semua page
+
+// ======= PACE GUARD (opsional, off) =======
+const bool kPaceGuard = false;
+const double kBaseCps = 13.8;
+const double kLeadAllowance = 0.12;
+const double kCpsMin = 8.0;
+const double kCpsMax = 22.0;
+const double kEmaAlpha = 0.30;
+const int kAntiStallMs = 900;
+const double kAntiStallStep = 0.05;
+const double kAntiStallMax = 0.18;
+
+// ======= LAG QUEUE (dipakai kalau kUseSmoothFollow=false) =======
+const int kLagMs = 280;
+const int kFlushEveryMs = 30;
+
+// ======= SMOOTH FOLLOW PARAMS =======
+// Update lebih “tenang” untuk mengurangi flicker
+const int kSmoothTickMs = 90; // 40ms -> 90ms
+const double kSmoothLead = 0.06; // tetap sedikit “di depan”
+const int kMinAdvance = 2; // minimal loncat 2 char baru apply
+
+/// PATCH: helper global untuk menyamakan string UI & string yang di-speak
+String cleanZW(String s) {
+  const removeChars = [
+    '\uFEFF', // BOM
+    '\u200B', // ZWSP
+    '\u200C', // ZWNJ
+    '\u200D', // ZWJ
+    '\u2060', // WORD JOINER
+    '\u00AD', // SOFT HYPHEN
+    '\u2011', // NON-BREAKING HYPHEN
+    '\u034F', // COMBINING GRAPHEME JOINER
+  ];
+  for (final ch in removeChars) {
+    s = s.replaceAll(ch, '');
+  }
+  s = s.replaceAll('\t', ' ');
+  s = s.replaceAll('\u00A0', ' ');
+  s = s.replaceAll('\u202F', ' ');
+  s = s.replaceAll('\r\n', '\n');
+  s = s.replaceAll(RegExp(r' {2,}'), ' ');
+  return s;
+}
+
+// ======= TOP-LEVEL: event highlight (untuk queue) =======
+class _HiEv {
+  final int ts;
+  final int s;
+  final int e;
+  _HiEv(this.ts, this.s, this.e);
+}
+
+// === Helper global baru: matikan highlight & autoRead dengan aman ===
+void _killHighlight(BuildContext context) {
+  final parent = context.findAncestorStateOfType<_ReaderScreenState>();
+  if (parent == null) return;
+  parent._cancelHighlightTimers();
+  parent._resetHighlight();
+  parent._autoRead.value = false;
+  // kosongkan visual highlight
+  try {
+    context.read<TtsProvider>().active.value = const TextRange(
+      start: 0,
+      end: 0,
+    );
+  } catch (_) {}
+}
+
 class ReaderScreen extends StatefulWidget {
   final int id;
   const ReaderScreen({super.key, required this.id});
@@ -31,13 +119,85 @@ class _ReaderScreenState extends State<ReaderScreen>
   bool _panelExpanded = false;
   bool _openedOnce = false;
   final ValueNotifier<bool> _autoRead = ValueNotifier<bool>(false);
-  // Restore sekali saat pages sudah siap
   bool _restoredOnce = false;
   int? _pendingTargetIndex;
   VoidCallback? _rpListener;
 
   // NEW: subscription selesai TTS → untuk auto-advance
   StreamSubscription<void>? _ttsDoneSub;
+
+  // --- State untuk scroll ---
+  Timer? _scrollDebounce;
+  double _pendingScrollOffset = 0.0;
+
+  // --- State highlight ---
+  int _currHiStart = 0;
+  int _currHiEnd = 0;
+
+  // Timer throttle apply highlight
+  Timer? _hiDelayTimer;
+
+  // === Throttle params ===
+  static const int _applyEveryMs = 70;
+  static const int _scrollDebounceMs = 80;
+  int _lastApplyEpochMs = 0;
+
+  // DEBUG: waktu mulai tiap speak()
+  int _speakStartEpochMs = 0;
+
+  // ====== PACE GUARD state ======
+  int _estDurMs = 0;
+  double _emaCps = kBaseCps;
+  int _clampStreak = 0;
+  int _lastClampEpochMs = 0;
+  int _lastAppliedHiE = 0;
+
+  // ====== LAG QUEUE state (untuk progress engine) ======
+  final List<_HiEv> _pendingHi = <_HiEv>[];
+  Timer? _flushTimer;
+
+  // ====== SMOOTH FOLLOW timer ======
+  Timer? _smoothTimer;
+
+  void _resetHighlight() {
+    _currHiStart = 0;
+    _currHiEnd = 0;
+    _lastAppliedHiE = 0;
+  }
+
+  void _cancelHighlightTimers() {
+    _hiDelayTimer?.cancel();
+    _scrollDebounce?.cancel();
+    _pendingHi.clear();
+    _smoothTimer?.cancel();
+  }
+
+  void _forceHighlightToEnd() {
+    if (!mounted) return;
+    final r = context.read<ReaderProvider>();
+    if (r.pages.isEmpty) return;
+    final txt = cleanZW(r.pages[r.index].textPlain ?? '');
+    final end = txt.length;
+    _currHiStart = (_currHiEnd <= end) ? _currHiEnd : 0;
+    _currHiEnd = end;
+    _lastAppliedHiE = _currHiEnd;
+    _pendingHi.clear();
+    _smoothTimer?.cancel();
+    context.read<TtsProvider>().active.value = TextRange(
+      start: _currHiStart,
+      end: _currHiEnd,
+    );
+  }
+
+  void _resetUtteranceTiming() {
+    _lastApplyEpochMs = 0;
+    _emaCps = kBaseCps;
+    _clampStreak = 0;
+    _lastClampEpochMs = 0;
+    _estDurMs = 0;
+    _pendingHi.clear();
+    _smoothTimer?.cancel();
+  }
 
   Future<void> _saveReadingProgress(int? storyId, int pageIndex) async {
     try {
@@ -49,9 +209,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this); // <-- DAFTAR observer lifecycle
+    WidgetsBinding.instance.addObserver(this);
 
-    // pastikan TTS sinopsis benar2 mati saat masuk reader
+    // matikan TTS sinopsis saat masuk reader
     final tts = context.read<TtsProvider>();
     Future.microtask(() async {
       try {
@@ -61,6 +221,27 @@ class _ReaderScreenState extends State<ReaderScreen>
           Future.delayed(const Duration(milliseconds: 250)),
         ]);
       } catch (_) {}
+    });
+
+    // LAG QUEUE flusher (no-op saat kUseSmoothFollow=true)
+    _flushTimer = Timer.periodic(const Duration(milliseconds: kFlushEveryMs), (
+      _,
+    ) {
+      if (!mounted || kUseSmoothFollow) return;
+      if (_pendingHi.isEmpty) return;
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final ev = _pendingHi.first;
+      if (now - ev.ts < kLagMs) return;
+      _pendingHi.removeAt(0);
+
+      final prov = context.read<ReaderProvider>();
+      if (prov.pages.isEmpty) return;
+      final txt = cleanZW(prov.pages[prov.index].textPlain ?? '');
+      if (txt.isEmpty) return;
+
+      final tts = context.read<TtsProvider>();
+      _applyHighlightWithRules(txt, ev.s, ev.e, tts);
     });
   }
 
@@ -84,7 +265,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     return t;
   }
 
-  // Precache image halaman berikutnya agar transisi lebih halus
+  // Precache image halaman berikutnya
   void _precacheNextPage(
     BuildContext context,
     String? nextPath,
@@ -122,23 +303,22 @@ class _ReaderScreenState extends State<ReaderScreen>
 
       // Buka cerita
       context.read<ReaderProvider>().openStory(widget.id);
-      // ===== Siapkan target restore dari SharedPreferences (tanpa melompat dulu) =====
+      // Restore target halaman (tanpa lompat dulu)
       try {
         final r0 = context.read<ReaderProvider>();
         final saved = (r0.storyId != null)
             ? await ReadingProgressStore.getPage(r0.storyId!)
             : null;
-        _pendingTargetIndex = saved; // bisa null kalau belum ada progres
+        _pendingTargetIndex = saved;
       } catch (_) {
         _pendingTargetIndex = null;
       }
 
-      // ===== Pasang listener satu-kali: setelah pages siap & isBusy=false, baru lompat =====
+      // Listener satu-kali: setelah pages siap baru lompat
       final r = context.read<ReaderProvider>();
       _rpListener = () {
         if (_restoredOnce) return;
         if (r.isBusy || r.pages.isEmpty) return;
-        // Jalankan setelah frame berikutnya agar tidak dibatalkan oleh rebuild berikutnya
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_restoredOnce) return;
           if (!mounted) return;
@@ -156,30 +336,118 @@ class _ReaderScreenState extends State<ReaderScreen>
             }
           }
           _restoredOnce = true;
-          if (_rpListener != null) {
-            r.removeListener(_rpListener!);
-          }
+          if (_rpListener != null) r.removeListener(_rpListener!);
         });
       };
       r.addListener(_rpListener!);
 
-      // Auto-scroll teks mengikuti progres TTS
+      // ===========================
+      // PROGRESS CALLBACK
+      // ===========================
       final tts = context.read<TtsProvider>();
-      tts.onProgress = (txt, s, e, _) {
-        tts.active.value = TextRange(start: s, end: e);
-        if (!_textScroll.hasClients) return;
-        final len = txt.isEmpty ? 1 : txt.length;
-        final ratio = e / len;
-        final max = _textScroll.position.maxScrollExtent;
-        _textScroll.animateTo(
-          ratio * max,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
+      tts.onProgress = (txtEngine, s, e, word) {
+        if (kUseSmoothFollow) {
+          // Natural mode: abaikan event progress (biar timer yang gerakkan highlight)
+          return;
+        }
+
+        final prov = context.read<ReaderProvider>();
+        if (prov.pages.isEmpty) return;
+        final txt = cleanZW(prov.pages[prov.index].textPlain ?? '');
+        if (txt.isEmpty) return;
+
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final sinceSpeak = (_speakStartEpochMs == 0)
+            ? -1
+            : (now - _speakStartEpochMs);
+        dlog(
+          'progress(raw) t=+${sinceSpeak}ms s=$s e=$e word="${word ?? ''}" engineSeg="${shortStr((s >= 0 && e > s && s < (txtEngine.length ?? 0)) ? txtEngine.substring(s, math.min(e, (txtEngine.length ?? 0))) : '')}"',
         );
+
+        final rDbg = prov;
+        final txtDbg = (rDbg.pages.isNotEmpty
+            ? (rDbg.pages[rDbg.index].textPlain ?? '')
+            : '');
+        final start0 = s.clamp(0, txtDbg.length);
+        final end0 = e.clamp(0, txtDbg.length);
+        final seg = (start0 < end0)
+            ? txtDbg.substring(start0, math.min(end0, start0 + 35))
+            : '';
+        if (kTtsDebug) {
+          debugPrint(
+            '[P${rDbg.index + 1}] word="$word" s=$s e=$e | seg="${seg.replaceAll('\n', '⏎')}"',
+          );
+        }
+
+        int hiS = tts.mapEngineToOriginal(s).clamp(0, txt.length);
+        int hiE = tts.mapEngineToOriginal(e).clamp(hiS, txt.length);
+
+        dlog(
+          'progress(mapped) page=${prov.index + 1} start=$hiS end=$hiE len=${txt.length} seg="${shortStr(txt.substring(hiS, math.min(hiE, txt.length)))}"',
+        );
+
+        if (kPaceGuard && _speakStartEpochMs > 0) {
+          final elapsed = (now - _speakStartEpochMs).clamp(1, 1 << 30);
+          if (hiE > 0) {
+            final instCps = (hiE / (elapsed / 1000)).clamp(kCpsMin, kCpsMax);
+            _emaCps = (1 - kEmaAlpha) * _emaCps + kEmaAlpha * instCps;
+            _estDurMs = ((txt.length / _emaCps) * 1000).round();
+          } else if (_estDurMs == 0) {
+            _estDurMs = ((txt.length / _emaCps) * 1000).round();
+          }
+
+          final baseAllowedRatio =
+              ((_estDurMs == 0 ? 0.0 : (elapsed / _estDurMs)) + kLeadAllowance)
+                  .clamp(0.0, 1.0);
+          double extraAllowance = 0.0;
+          if (_clampStreak >= 2) {
+            extraAllowance = (kAntiStallStep * _clampStreak).clamp(
+              0.0,
+              kAntiStallMax,
+            );
+            if (_lastClampEpochMs > 0 &&
+                now - _lastClampEpochMs > kAntiStallMs) {
+              extraAllowance = (extraAllowance + 0.08).clamp(
+                0.0,
+                kAntiStallMax,
+              );
+            }
+          }
+          final allowedRatio = (baseAllowedRatio + extraAllowance).clamp(
+            0.0,
+            1.0,
+          );
+          final allowedMax = (allowedRatio * txt.length).floor();
+
+          if (hiE > allowedMax) {
+            hiE = allowedMax;
+            if (hiS > hiE) hiS = hiE;
+            _clampStreak += 1;
+            _lastClampEpochMs = now;
+            dlog(
+              'paceGuard clamp -> allowedRatio=${allowedRatio.toStringAsFixed(3)} allowedMax=$allowedMax curr=$hiE len=${txt.length} streak=$_clampStreak',
+            );
+          } else {
+            _clampStreak = 0;
+          }
+        }
+
+        // Masuk queue (diproses dengan lag agar tidak lari duluan)
+        _pendingHi.add(_HiEv(now, hiS, hiE));
+        dlog('queue +1 (len=${_pendingHi.length})');
       };
 
-      // NEW: Dengarkan selesai TTS → auto next page + speak lagi jika auto ON
+      // selesai TTS → force end + auto next jika auto
       _ttsDoneSub = tts.onComplete.listen((_) async {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final dur = (_speakStartEpochMs == 0) ? -1 : (now - _speakStartEpochMs);
+        dlog(
+          'onComplete after ${dur}ms | page=${context.read<ReaderProvider>().index + 1} currHL=$_currHiStart..$_currHiEnd',
+        );
+
+        _forceHighlightToEnd();
+        await Future.delayed(const Duration(milliseconds: 120));
+
         if (!mounted) return;
         if (!_autoRead.value) return;
 
@@ -187,16 +455,14 @@ class _ReaderScreenState extends State<ReaderScreen>
         if (r.pages.isEmpty) return;
         final hasNext = r.index + 1 < r.pages.length;
 
-        // === Tambahan: jika sudah di halaman terakhir → tampilkan end-of-story sheet ===
         if (!hasNext) {
-          _autoRead.value = false; // cegah loop
+          _autoRead.value = false;
           try {
             await _saveReadingProgress(r.storyId, r.index);
           } catch (_) {}
           try {
-            await tts.stop();
+            await context.read<TtsProvider>().stop();
           } catch (_) {}
-
           if (!mounted) return;
 
           final sp = context.read<StoryProvider>();
@@ -219,20 +485,31 @@ class _ReaderScreenState extends State<ReaderScreen>
               );
             },
             onRestart: () async {
+              final tts = context.read<TtsProvider>();
               await tts.stop();
+              final r = context.read<ReaderProvider>();
               for (int i = r.index; i > 0; i--) {
                 r.prevPage();
               }
+              _cancelHighlightTimers();
               tts.active.value = const TextRange(start: 0, end: 0);
+              _resetHighlight();
               final page0 = r.pages[r.index];
-              final text0 = (page0.textPlain ?? '').trim();
+              final text0 = cleanZW(page0.textPlain ?? '');
               if (text0.isNotEmpty) {
                 _autoRead.value = true;
+                _resetUtteranceTiming();
+                _speakStartEpochMs = DateTime.now().millisecondsSinceEpoch;
+                _emaCps = kBaseCps;
+                _estDurMs = ((text0.length / _emaCps) * 1000).round();
+                dlog(
+                  'speak() page=${context.read<ReaderProvider>().index + 1} len=${text0.length} | "${shortStr(text0)}"',
+                );
+                if (kUseSmoothFollow) _startSmoothFollow(text0);
                 await tts.speak(text0);
               }
             },
             onBrowseOthers: () {
-              // Arahkan ke LibraryScreen
               Navigator.of(
                 context,
               ).push(MaterialPageRoute(builder: (_) => const LibraryScreen()));
@@ -241,30 +518,179 @@ class _ReaderScreenState extends State<ReaderScreen>
           return;
         }
 
-        // Default: masih ada halaman berikut → lanjut otomatis
+        // Default: lanjut otomatis
         r.nextPage();
+        dlog('autoNext -> page=${r.index + 1}/${r.pages.length}');
         await _saveReadingProgress(r.storyId, r.index);
-        tts.active.value = const TextRange(start: 0, end: 0);
+        _cancelHighlightTimers();
+        context.read<TtsProvider>().active.value = const TextRange(
+          start: 0,
+          end: 0,
+        );
+        _resetHighlight();
 
         final page = r.pages[r.index];
-        final text = (page.textPlain ?? '').trim();
+        final text = cleanZW(page.textPlain ?? '');
         if (text.isEmpty) return;
 
         await Future.delayed(const Duration(milliseconds: 200));
-        await tts.stop();
-        await tts.speak(text);
+        await context.read<TtsProvider>().stop();
+        _resetUtteranceTiming();
+        _speakStartEpochMs = DateTime.now().millisecondsSinceEpoch;
+        _emaCps = kBaseCps;
+        _estDurMs = ((text.length / _emaCps) * 1000).round();
+        dlog(
+          'speak() page=${context.read<ReaderProvider>().index + 1} len=${text.length} | "${shortStr(text)}"',
+        );
+        if (kUseSmoothFollow) _startSmoothFollow(text);
+        await context.read<TtsProvider>().speak(text);
       });
     });
   }
 
+  // ======= SMOOTH FOLLOW =======
+
+  // Snap ke batas kata/punctuation agar blok highlight stabil
+  int _snapForwardToBoundary(String txt, int idx) {
+    if (idx <= 0) return 0;
+    if (idx >= txt.length) return txt.length;
+
+    // kalau sudah di spasi/akhir kata, pakai saja
+    final isWs = RegExp(r'\s').hasMatch(txt[idx - 1]);
+    if (isWs) return idx;
+
+    // cari spasi/punctuation ke depan sedikit (window kecil)
+    final end = math.min(txt.length, idx + 12);
+    for (int i = idx; i < end; i++) {
+      final ch = txt.codeUnitAt(i);
+      final isSpace = ch == 32 || ch == 10 || ch == 13 || ch == 9;
+      final isPunct =
+          (ch >= 33 && ch <= 47) ||
+          (ch >= 58 && ch <= 64) ||
+          (ch >= 91 && ch <= 96) ||
+          (ch >= 123 && ch <= 126);
+      if (isSpace || isPunct) {
+        return i; // berhenti tepat sebelum delimiter
+      }
+    }
+    return idx;
+  }
+
+  void _startSmoothFollow(String txt) {
+    _smoothTimer?.cancel();
+    if (!mounted) return;
+
+    // Estimasi durasi awal (ms) dari panjang teks & cps yang di-EMA.
+    if (_estDurMs <= 0) {
+      _estDurMs = ((txt.length / _emaCps) * 1000).round();
+    }
+    if (_estDurMs < 1200) _estDurMs = 1200; // teks pendek jangan keburu selesai
+
+    final tts = context.read<TtsProvider>();
+
+    _smoothTimer = Timer.periodic(const Duration(milliseconds: kSmoothTickMs), (
+      t,
+    ) {
+      if (!mounted) return;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (_speakStartEpochMs <= 0) return;
+
+      final elapsed = (now - _speakStartEpochMs).toDouble();
+      final rawRatio = (elapsed / _estDurMs);
+      final ratio = (rawRatio + kSmoothLead).clamp(0.0, 1.0);
+
+      final targetE0 = (ratio * txt.length).floor();
+      // Snap ke batas kata / delimiter agar stabil
+      final targetE = _snapForwardToBoundary(txt, targetE0);
+
+      int s = _currHiEnd;
+      int e = targetE;
+
+      // Jangan apply untuk perubahan kecil (anti flicker)
+      if (e - _currHiEnd < kMinAdvance && e < txt.length) {
+        return;
+      }
+
+      _applyHighlightWithRules(txt, s, e, tts);
+
+      // selesai → hentikan timer
+      if (ratio >= 1.0) {
+        _smoothTimer?.cancel();
+      }
+    });
+  }
+
+  // Terapkan aturan hysteresis + step + throttle + autoscroll
+  void _applyHighlightWithRules(String txt, int hiS, int hiE, TtsProvider tts) {
+    // Hysteresis: jangan mundur
+    if (hiE < _currHiEnd) {
+      hiS = _currHiStart;
+      hiE = _currHiEnd;
+    }
+    // Batasi loncatan per langkah
+    const maxStep = 24;
+    if (hiE > _currHiEnd + maxStep) {
+      hiS = _currHiEnd;
+      hiE = _currHiEnd + maxStep;
+    }
+
+    final now2 = DateTime.now().millisecondsSinceEpoch;
+    final elapsed2 = now2 - _lastApplyEpochMs;
+
+    void applyHighlightAndScroll() {
+      if (!mounted) return;
+      if (hiE >= _currHiEnd) {
+        _currHiStart = hiS;
+        _currHiEnd = hiE;
+        _lastAppliedHiE = hiE;
+
+        dlog(
+          'applyHL start=$_currHiStart end=$_currHiEnd ratio=${txt.isEmpty ? 0 : (_currHiEnd / txt.length).toStringAsFixed(3)} scrollHas=${_textScroll.hasClients}',
+        );
+        tts.active.value = TextRange(start: hiS, end: hiE);
+      }
+
+      if (_textScroll.hasClients && txt.isNotEmpty) {
+        final ratio = _currHiEnd / txt.length;
+        final max = _textScroll.position.maxScrollExtent;
+        _pendingScrollOffset = (ratio * max).clamp(0.0, max);
+        _scrollDebounce?.cancel();
+        _scrollDebounce = Timer(
+          const Duration(milliseconds: _scrollDebounceMs),
+          () {
+            if (!_textScroll.hasClients) return;
+            _textScroll.animateTo(
+              _pendingScrollOffset,
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutCubic,
+            );
+          },
+        );
+      }
+
+      _lastApplyEpochMs = DateTime.now().millisecondsSinceEpoch;
+    }
+
+    if (elapsed2 >= _applyEveryMs ||
+        _currHiEnd == 0 ||
+        (hiE - _currHiEnd) <= 2) {
+      _hiDelayTimer?.cancel();
+      applyHighlightAndScroll();
+    } else {
+      final remain = _applyEveryMs - elapsed2;
+      _hiDelayTimer?.cancel();
+      _hiDelayTimer = Timer(Duration(milliseconds: remain), () {
+        applyHighlightAndScroll();
+      });
+    }
+  }
+
   @override
   void dispose() {
-    // Simpan progres terakhir saat keluar Reader
     try {
       final r = context.read<ReaderProvider>();
       _saveReadingProgress(r.storyId, r.index);
     } catch (_) {}
-    // Lepas listener bila masih terpasang
     try {
       final r = context.read<ReaderProvider>();
       if (_rpListener != null) {
@@ -273,22 +699,39 @@ class _ReaderScreenState extends State<ReaderScreen>
     } catch (_) {}
     _ttsDoneSub?.cancel();
     _textScroll.dispose();
+    _scrollDebounce?.cancel();
+    _hiDelayTimer?.cancel();
+    _smoothTimer?.cancel();
+    _flushTimer?.cancel();
 
-    WidgetsBinding.instance.removeObserver(this); // <-- LEPAS observer
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
-    // Saat pindah app/layar mati/background → hentikan TTS & simpan progres
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      // MATIKAN AUTO READ saat app ke background
+      _autoRead.value = false;
+
       try {
         await context.read<TtsProvider>().stop();
       } catch (_) {}
       try {
         await context.read<TtsCompatAdapter>().stop();
       } catch (_) {}
+
+      // hentikan highlight sepenuhnya
+      _cancelHighlightTimers();
+      _resetHighlight();
+      try {
+        context.read<TtsProvider>().active.value = const TextRange(
+          start: 0,
+          end: 0,
+        );
+      } catch (_) {}
+
       try {
         final r = context.read<ReaderProvider>();
         await _saveReadingProgress(r.storyId, r.index);
@@ -296,10 +739,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
   }
 
-  // === Helper untuk memunculkan sheet akhir cerita dari mana saja (NEXT / auto-read) ===
+  // === Helper untuk memunculkan sheet akhir cerita dari mana saja ===
   void _presentEndSheet() async {
     if (!mounted) return;
-    // Matikan auto-read dan TTS, simpan progres
     _autoRead.value = false;
     try {
       final tts = context.read<TtsProvider>();
@@ -336,11 +778,21 @@ class _ReaderScreenState extends State<ReaderScreen>
         for (int i = r.index; i > 0; i--) {
           r.prevPage();
         }
+        _cancelHighlightTimers();
         tts.active.value = const TextRange(start: 0, end: 0);
+        _resetHighlight();
         final page0 = r.pages[r.index];
-        final text0 = (page0.textPlain ?? '').trim();
+        final text0 = cleanZW(page0.textPlain ?? '');
         if (text0.isNotEmpty) {
           _autoRead.value = true;
+          _resetUtteranceTiming();
+          _speakStartEpochMs = DateTime.now().millisecondsSinceEpoch;
+          _emaCps = kBaseCps;
+          _estDurMs = ((text0.length / _emaCps) * 1000).round();
+          dlog(
+            'speak() page=${context.read<ReaderProvider>().index + 1} len=${text0.length} | "${shortStr(text0)}"',
+          );
+          if (kUseSmoothFollow) _startSmoothFollow(text0);
           await tts.speak(text0);
         }
       },
@@ -352,7 +804,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
-  // === Helper sheet akhir cerita (Tambahan patch) ===
+  // === Helper sheet akhir cerita ===
   void _showEndOfStorySheet(
     BuildContext context, {
     required Future<void> Function() onRestart,
@@ -365,6 +817,36 @@ class _ReaderScreenState extends State<ReaderScreen>
       backgroundColor: Colors.transparent,
       builder: (_) {
         final cs = Theme.of(context).colorScheme;
+
+        // ====== gaya tombol ======
+        final RoundedRectangleBorder btnShape = RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        );
+
+        final ButtonStyle outlinedStyle = OutlinedButton.styleFrom(
+          shape: btnShape,
+          side: BorderSide(
+            color: cs.primary.withValues(alpha: 0.90),
+            width: 1.2,
+          ),
+          foregroundColor: cs.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        );
+
+        final ButtonStyle filledStyle = FilledButton.styleFrom(
+          shape: btnShape,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          backgroundColor: cs.primary,
+          foregroundColor: cs.onPrimary,
+          elevation: 0,
+        );
+
+        final ButtonStyle textStyle = TextButton.styleFrom(
+          shape: btnShape,
+          foregroundColor: cs.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        );
+
         return Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
           child: Container(
@@ -394,12 +876,11 @@ class _ReaderScreenState extends State<ReaderScreen>
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-
-                // Baris: Favorit + Ulang dari awal (TIDAK ADA "Tetap di sini")
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
+                        style: outlinedStyle,
                         onPressed: () {
                           Navigator.of(context).pop();
                           onToggleFavorite();
@@ -417,6 +898,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: FilledButton.icon(
+                        style: filledStyle,
                         onPressed: () async {
                           Navigator.of(context).pop();
                           await onRestart();
@@ -427,13 +909,11 @@ class _ReaderScreenState extends State<ReaderScreen>
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 8),
-
-                // Tombol penuh: Baca cerita lain (baris bawah)
                 SizedBox(
                   width: double.infinity,
                   child: TextButton.icon(
+                    style: textStyle,
                     onPressed: () {
                       Navigator.of(context).pop();
                       onBrowseOthers();
@@ -442,7 +922,6 @@ class _ReaderScreenState extends State<ReaderScreen>
                     label: const Text('Baca cerita lain'),
                   ),
                 ),
-
                 const SizedBox(height: 4),
               ],
             ),
@@ -470,7 +949,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           SafeArea(
             child: Stack(
               children: [
-                // =================== ILUSTRASI (selalu tampak di belakang panel) ===================
+                // =================== ILUSTRASI ===================
                 Positioned.fill(
                   child: Consumer<ReaderProvider>(
                     builder: (context, r, _) {
@@ -482,10 +961,8 @@ class _ReaderScreenState extends State<ReaderScreen>
                       }
                       final page = r.pages[r.index];
 
-                      // Ambil baseDir dari provider (wajib: assets/stories/[judul-cerita]/
                       final baseDir = _sanitizeBaseDir(r.storyDir);
 
-                      // Siapkan precache untuk halaman berikutnya
                       final String? nextRaw = (r.index + 1 < r.pages.length)
                           ? r.pages[r.index + 1].imageAsset
                           : null;
@@ -503,7 +980,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                           ),
                         ),
                         child: Align(
-                          key: ValueKey(r.index), // kunci berbeda tiap halaman
+                          key: ValueKey(r.index),
                           alignment: const Alignment(0, -1.3),
                           child: FractionallySizedBox(
                             widthFactor: 0.92,
@@ -525,17 +1002,17 @@ class _ReaderScreenState extends State<ReaderScreen>
                 // =================== TOP BAR ===================
                 const _TopGlassBar(),
 
-                // =================== PANEL TEKS (overlay di bawah) ===================
+                // =================== PANEL TEKS ===================
                 _ReadingPanel(
                   panelExpanded: _panelExpanded,
                   onToggle: () =>
                       setState(() => _panelExpanded = !_panelExpanded),
                   textScroll: _textScroll,
                   autoReadVN: _autoRead,
-                  onRequestEndSheet: _presentEndSheet, // <-- pass callback
+                  onRequestEndSheet: _presentEndSheet,
                 ),
 
-                // bayangan lembut di bawah panel supaya kontras
+                // bayangan lembut di bawah panel
                 Positioned(
                   left: 0,
                   right: 0,
@@ -565,9 +1042,6 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 }
 
-/// Loader gambar yang "tahan banting":
-/// - URL -> network
-/// - Asset relatif: diprefix dengan baseDir: assets/stories/[judul-cerita]/
 class _SafeStoryImage extends StatelessWidget {
   const _SafeStoryImage({required this.path, required this.baseDir});
   final String? path;
@@ -594,34 +1068,62 @@ class _SafeStoryImage extends StatelessWidget {
     if (_looksLikeUrl(clean)) return clean;
     if (clean.startsWith('assets/')) return clean;
 
-    // kalau path relatif (mis. "p2.png" atau "img/p2.png"), prefix dengan baseDir
     final b = baseDir.endsWith('/') ? baseDir : '$baseDir/';
     if (clean.startsWith('/')) return '$b${clean.substring(1)}';
     return '$b$clean';
   }
 
   Future<String?> _resolveAsset(String rawWithBase) async {
-    // Coba langsung
-    try {
-      await rootBundle.load(rawWithBase);
-      return rawWithBase;
-    } catch (_) {}
-
-    // Kandidat cadangan (lebih konservatif)
-    final base = rawWithBase;
-    final List<String> candidates = [
-      base,
-      if (!base.startsWith('assets/')) 'assets/$base',
-    ];
-
-    for (final c in candidates) {
+    // Helper: cek apakah asset ada
+    Future<bool> exists(String p) async {
       try {
-        await rootBundle.load(c);
-        return c; // ketemu
+        await rootBundle.load(p);
+        return true;
       } catch (_) {
-        /* lanjut */
+        return false;
       }
     }
+
+    // Kumpulkan kandidat path:
+    // - path asli
+    // - jika tidak diawali 'assets/', coba prefix 'assets/'
+    final List<String> bases = [
+      rawWithBase,
+      if (!rawWithBase.startsWith('assets/')) 'assets/$rawWithBase',
+    ];
+
+    // Pola ekstensi yang umum
+    final extRegex = RegExp(r'\.(png|jpg|jpeg|webp)$', caseSensitive: false);
+    const tryExts = <String>['.jpg', '.jpeg', '.png', '.webp'];
+
+    for (final b in bases) {
+      // 1) Coba path apa adanya
+      if (await exists(b)) return b;
+
+      // 2) Siapkan versi tanpa ekstensi (kalau ada), supaya bisa tukar ekstensi
+      final String bNoExt = b.replaceAll(extRegex, '');
+
+      // 3) Jika b sudah punya ekstensi, coba tukar ke format lain
+      if (extRegex.hasMatch(b)) {
+        for (final e in tryExts) {
+          final cand = bNoExt + e;
+          if (await exists(cand)) return cand;
+        }
+      } else {
+        // 4) Jika b tidak punya ekstensi, coba tambahkan beberapa kandidat
+        for (final e in tryExts) {
+          final cand = b + e;
+          if (await exists(cand)) return cand;
+        }
+        // 5) Atau tambahkan ke bNoExt juga (jaga-jaga)
+        for (final e in tryExts) {
+          final cand = bNoExt + e;
+          if (await exists(cand)) return cand;
+        }
+      }
+    }
+
+    // Tidak ditemukan
     return null;
   }
 
@@ -673,7 +1175,6 @@ class _SafeStoryImage extends StatelessWidget {
   }
 }
 
-/// Top bar tombol bulat gaya glass
 class _TopGlassBar extends StatelessWidget {
   const _TopGlassBar();
 
@@ -689,14 +1190,13 @@ class _TopGlassBar extends StatelessWidget {
           _CircleIconButton(
             icon: Icons.arrow_back,
             onTap: () async {
-              // stop TTS (aman dipanggil walau tidak sedang bicara)
               try {
                 await context.read<TtsProvider>().stop();
               } catch (_) {}
               try {
                 await context.read<TtsCompatAdapter>().stop();
               } catch (_) {}
-              // Simpan progres sebelum keluar
+              _killHighlight(context); // <— pastikan highlight berhenti
               try {
                 final r = context.read<ReaderProvider>();
                 if (r.storyId != null) {
@@ -711,13 +1211,15 @@ class _TopGlassBar extends StatelessWidget {
               _CircleIconButton(
                 icon: Icons.settings,
                 onTap: () async {
-                  // Pastikan TTS berhenti sebelum masuk ke halaman Settings
                   try {
                     await context.read<TtsProvider>().stop();
                   } catch (_) {}
                   try {
                     await context.read<TtsCompatAdapter>().stop();
                   } catch (_) {}
+                  _killHighlight(
+                    context,
+                  ); // <— stop highlight saat buka Settings
                   if (!context.mounted) return;
                   Navigator.of(context).pushNamed('/settings');
                 },
@@ -734,7 +1236,6 @@ class _TopGlassBar extends StatelessWidget {
   }
 }
 
-/// Bottom sheet pengaturan volume
 void _showVolumeSheet(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -781,7 +1282,6 @@ class _VolumeSheet extends StatelessWidget {
                   children: [
                     Icon(Icons.volume_up, color: cs.primary),
                     const SizedBox(width: 8),
-                    // Title dibuat Expanded agar tidak overflow saat text scale besar
                     Expanded(
                       child: Text(
                         'Volume Narasi',
@@ -810,7 +1310,6 @@ class _VolumeSheet extends StatelessWidget {
                   label: '$pct%',
                 ),
                 const SizedBox(height: 6),
-                // Tombol-tombol dibuat responsif agar tidak overflow di text scale besar
                 Row(
                   children: [
                     Expanded(
@@ -856,7 +1355,6 @@ class _VolumeSheet extends StatelessWidget {
   }
 }
 
-/// Panel teks: collapsed = ringkas (preview), expanded = scroll penuh
 class _ReadingPanel extends StatelessWidget {
   const _ReadingPanel({
     required this.panelExpanded,
@@ -877,16 +1375,13 @@ class _ReadingPanel extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final size = MediaQuery.of(context).size;
 
-    const double panelMinBase = 160.0; // tinggi dasar saat collapsed
-    final double panelMax = size.height * .40; // tinggi saat expanded
+    final double panelHeight = size.height * .40;
 
-    // ==== FIX: tinggi collapsed adaptif sesuai skala teks + bantalan ekstra ====
-    final double textScale = MediaQuery.of(context).textScaler.scale(1.0);
-    // Tambah headroom ±90px per kenaikan skala + cushion 14px, dibatasi < panelMax
-    final double collapsedHeight = math.max(
-      panelMinBase + 14.0,
-      math.min(panelMax - 4.0, panelMinBase + 14.0 + (textScale - 1.0) * 90.0),
-    );
+    // === Warna highlight adaptif (terlihat di light/dark) ===
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color hiBg = isDark
+        ? cs.primaryContainer.withValues(alpha: 0.55) // lebih pekat di dark
+        : cs.primary.withValues(alpha: 0.32); // sedikit lebih ringan di light
 
     return Positioned(
       left: 12,
@@ -895,7 +1390,7 @@ class _ReadingPanel extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        height: panelExpanded ? panelMax : collapsedHeight,
+        height: panelHeight,
         decoration: BoxDecoration(
           color: cs.surface.withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(16),
@@ -917,7 +1412,6 @@ class _ReadingPanel extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
             child: Column(
               children: [
-                // Header panel
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 8, 8, 4),
                   child: Row(
@@ -941,8 +1435,6 @@ class _ReadingPanel extends StatelessWidget {
                           style: Theme.of(context).textTheme.labelLarge,
                         ),
                       ),
-
-                      // ======= INDICATOR + TOGGLE AUTO BACA =======
                       ValueListenableBuilder<bool>(
                         valueListenable: autoReadVN,
                         builder: (_, on, __) {
@@ -951,18 +1443,50 @@ class _ReadingPanel extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                             onTap: () async {
                               autoReadVN.value = !on;
-
-                              // NEW: kalau baru dinyalakan & belum bicara, mulai bacakan halaman aktif
-                              if (autoReadVN.value) {
-                                final r = context.read<ReaderProvider>();
-                                final tts = context.read<TtsProvider>();
-                                if (!tts.speaking && r.pages.isNotEmpty) {
-                                  final text =
-                                      (r.pages[r.index].textPlain ?? '').trim();
-                                  if (text.isNotEmpty) {
-                                    await tts.stop();
-                                    await tts.speak(text);
+                              final tts = context.read<TtsProvider>();
+                              final parent = context
+                                  .findAncestorStateOfType<
+                                    _ReaderScreenState
+                                  >();
+                              if (!autoReadVN.value) {
+                                // dimatikan -> stop suara & highlight
+                                try {
+                                  await tts.stop();
+                                } catch (_) {}
+                                try {
+                                  await context.read<TtsCompatAdapter>().stop();
+                                } catch (_) {}
+                                _killHighlight(context);
+                                return;
+                              }
+                              // dinyalakan -> mulai baca halaman aktif
+                              final r = context.read<ReaderProvider>();
+                              if (!tts.speaking && r.pages.isNotEmpty) {
+                                final text = cleanZW(
+                                  r.pages[r.index].textPlain ?? '',
+                                );
+                                if (text.isNotEmpty) {
+                                  parent?._cancelHighlightTimers();
+                                  tts.active.value = const TextRange(
+                                    start: 0,
+                                    end: 0,
+                                  );
+                                  parent?._resetHighlight();
+                                  parent?._resetUtteranceTiming();
+                                  await tts.stop();
+                                  parent?._speakStartEpochMs =
+                                      DateTime.now().millisecondsSinceEpoch;
+                                  parent?._emaCps = kBaseCps;
+                                  parent?._estDurMs =
+                                      ((text.length / (parent._emaCps)) * 1000)
+                                          .round();
+                                  dlog(
+                                    'speak() page=${context.read<ReaderProvider>().index + 1} len=${text.length} | "${shortStr(text)}"',
+                                  );
+                                  if (kUseSmoothFollow) {
+                                    parent?._startSmoothFollow(text);
                                   }
+                                  await tts.speak(text);
                                 }
                               }
                             },
@@ -999,58 +1523,34 @@ class _ReadingPanel extends StatelessWidget {
                           );
                         },
                       ),
-                      // Tombol expand/collapse
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: onToggle,
-                        icon: Icon(
-                          panelExpanded
-                              ? Icons.keyboard_arrow_down_rounded
-                              : Icons.keyboard_arrow_up_rounded,
-                        ),
-                      ),
                     ],
                   ),
                 ),
 
-                // Kontrol
                 _ControlsRow(onRequestEndSheet: onRequestEndSheet),
-                const SizedBox(height: 4), // diperkecil agar aman
-                // === Konten teks ===
+                const SizedBox(height: 4),
+
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
                     child: Consumer<ReaderProvider>(
                       builder: (_, r, __) {
                         if (r.pages.isEmpty) return const SizedBox();
-                        final txt = r.pages[r.index].textPlain ?? '';
+                        final txt = cleanZW(r.pages[r.index].textPlain ?? '');
 
-                        // reset scroll ke atas saat pindah halaman
                         WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!kTtsDebug) return;
+                          dlog(
+                            'page=${r.index + 1} ready len=${txt.length} first="${shortStr(txt)}"',
+                          );
                           if (textScroll.hasClients) textScroll.jumpTo(0);
                         });
 
-                        if (!panelExpanded) {
-                          // PREVIEW
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Text(
-                              txt,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium!.copyWith(height: 1.35),
-                            ),
-                          );
-                        }
-
-                        // FULL SCROLL
                         final normal = Theme.of(
                           context,
                         ).textTheme.bodyMedium!.copyWith(height: 1.35);
                         final hi = normal.copyWith(
-                          backgroundColor: cs.primary.withValues(alpha: 0.25),
+                          backgroundColor: hiBg,
                           fontWeight: FontWeight.w700,
                         );
 
@@ -1068,7 +1568,7 @@ class _ReadingPanel extends StatelessWidget {
                             ),
                           ),
                           child: Scrollbar(
-                            key: ValueKey(r.index), // kunci per-halaman
+                            key: ValueKey(r.index),
                             controller: textScroll,
                             child: SingleChildScrollView(
                               controller: textScroll,
@@ -1113,7 +1613,6 @@ class _ReadingPanel extends StatelessWidget {
   }
 }
 
-/// Tombol kontrol narasi & page
 class _ControlsRow extends StatelessWidget {
   const _ControlsRow({required this.onRequestEndSheet});
 
@@ -1121,25 +1620,39 @@ class _ControlsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // DENGARKAN ReaderProvider agar ikut rebuild saat index/page berubah
     final r = context.watch<ReaderProvider>();
 
     return Consumer<TtsProvider>(
       builder: (_, tts, __) {
         final page = r.pages.isEmpty ? null : r.pages[r.index];
-        final text = (page?.textPlain ?? '').trim();
+        final text = cleanZW(page?.textPlain ?? '');
 
         Future<void> playCurrent() async {
-          await tts.stop(); // pastikan tidak overlap
+          final parent = context.findAncestorStateOfType<_ReaderScreenState>();
+          parent?._cancelHighlightTimers();
+          tts.active.value = const TextRange(start: 0, end: 0);
+          parent?._resetHighlight();
+          parent?._resetUtteranceTiming();
+
+          await tts.stop();
           if (text.isEmpty) return;
-          await tts.speak(text); // speak halaman TERKINI
+
+          parent?._speakStartEpochMs = DateTime.now().millisecondsSinceEpoch;
+          parent?._emaCps = kBaseCps;
+          parent?._estDurMs = ((text.length / (parent._emaCps)) * 1000)
+              .round();
+          dlog(
+            'speak() page=${context.read<ReaderProvider>().index + 1} len=${text.length} | "${shortStr(text)}"',
+          );
+          if (kUseSmoothFollow) parent?._startSmoothFollow(text);
+          await tts.speak(text);
         }
 
         void afterPageChanged() {
-          tts.active.value = const TextRange(
-            start: 0,
-            end: 0,
-          ); // kosongkan highlight
+          final parent = context.findAncestorStateOfType<_ReaderScreenState>();
+          parent?._cancelHighlightTimers();
+          tts.active.value = const TextRange(start: 0, end: 0);
+          parent?._resetHighlight();
         }
 
         return Row(
@@ -1149,9 +1662,9 @@ class _ControlsRow extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               onPressed: () async {
                 await tts.stop();
-                r.prevPage();
                 afterPageChanged();
-                // Simpan progres setelah pindah halaman
+                r.prevPage();
+                dlog('prevPage -> ${r.index}');
                 try {
                   final sp = await SharedPreferences.getInstance();
                   if (r.storyId != null) {
@@ -1162,7 +1675,6 @@ class _ControlsRow extends StatelessWidget {
               },
               icon: const Icon(Icons.skip_previous_rounded),
             ),
-            // === Play/Stop sinkron dengan speakingVN (tidak diubah) ===
             ValueListenableBuilder<bool>(
               valueListenable: tts.speakingVN,
               builder: (_, isSpeaking, __) {
@@ -1171,9 +1683,11 @@ class _ControlsRow extends StatelessWidget {
                   onPressed: () async {
                     if (isSpeaking) {
                       await tts.stop();
+                      _killHighlight(
+                        context,
+                      ); // <— stop highlight saat ditekan Stop
                     } else {
-                      await tts.stop(); // antisipasi overlap
-                      if (text.isNotEmpty) await tts.speak(text);
+                      await playCurrent();
                     }
                   },
                   icon: Icon(
@@ -1193,7 +1707,6 @@ class _ControlsRow extends StatelessWidget {
                 afterPageChanged();
 
                 if (isLast) {
-                  // Simpan progres lalu munculkan sheet akhir
                   try {
                     final sp = await SharedPreferences.getInstance();
                     if (r.storyId != null) {
@@ -1205,9 +1718,8 @@ class _ControlsRow extends StatelessWidget {
                   return;
                 }
 
-                // Masih ada halaman berikutnya -> lanjut normal
                 r.nextPage();
-                // Simpan progres setelah pindah halaman
+                dlog('nextPage -> ${r.index}');
                 try {
                   final sp = await SharedPreferences.getInstance();
                   if (r.storyId != null) {
@@ -1225,7 +1737,6 @@ class _ControlsRow extends StatelessWidget {
   }
 }
 
-/// Empty state bertema glass
 class _EmptyStateCard extends StatelessWidget {
   const _EmptyStateCard();
 
@@ -1272,7 +1783,6 @@ class _EmptyStateCard extends StatelessWidget {
   }
 }
 
-/// Tombol bulat netral (glass)
 class _CircleIconButton extends StatelessWidget {
   const _CircleIconButton({required this.icon, required this.onTap});
   final IconData icon;

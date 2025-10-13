@@ -349,7 +349,7 @@ class AppDatabase {
       );
 
       if ((story['cover_asset'] as String?)?.isEmpty ?? true) {
-        story['cover_asset'] = 'assets/images/covers/placeholder.png';
+        story['cover_asset'] = 'assets/images/covers/placeholder.jpg';
       }
       story['slug'] = slug;
 
@@ -449,8 +449,8 @@ class AppDatabase {
   return (first, rest.isEmpty ? '...' : rest);
 }
 
-String _page1ImageFor(String coverAsset) => 'assets/images/ui/page1.png';
-String _page2ImageFor(String coverAsset) => 'assets/images/ui/page2.png';
+String _page1ImageFor(String coverAsset) => 'assets/images/ui/page1.jpg';
+String _page2ImageFor(String coverAsset) => 'assets/images/ui/page2.jpg';
 
 // -------------------- Konten gaya “kode kedua” --------------------
 // const String _malinText =

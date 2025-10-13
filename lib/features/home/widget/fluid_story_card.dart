@@ -13,7 +13,7 @@ class FluidStoryCard extends StatelessWidget {
 
   // warna & aset
   static const _gold = Color(0xFFE8C35C);
-  static const _placeholder = 'assets/images/covers/default_cover.png';
+  static const _placeholder = 'assets/images/covers/default_cover.jpg';
 
   @override
   Widget build(BuildContext context) {

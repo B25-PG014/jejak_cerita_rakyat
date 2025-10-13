@@ -499,7 +499,7 @@ class _MiniGlassIcon extends StatelessWidget {
 class _GlassCircleButton extends StatelessWidget {
   const _GlassCircleButton({
     required this.icon,
-    required this.onTap, // <-- PATCH: inisialisasi field final tooltip via constructor
+    required this.onTap,
     this.tooltip,
   });
   final IconData icon;

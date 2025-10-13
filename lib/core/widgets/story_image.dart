@@ -10,13 +10,13 @@ Widget storyImage(
   BoxFit fit = BoxFit.cover,
   Alignment alignment = Alignment.center,
   bool gaplessPlayback = false,
-  String placeholder = 'assets/images/covers/default_cover.png',
+  String placeholder = 'assets/images/covers/default_cover.jpg',
   FilterQuality filterQuality = FilterQuality.medium,
 }) {
   final hasPath = (src != null && src.trim().isNotEmpty);
   final safePath = hasPath
       ? src.trim()
-      : 'assets/images/covers/default_cover.png';
+      : 'assets/images/covers/default_cover.jpg';
   if (src == null || src.isEmpty) {
     // Downscale cerdas sesuai layar untuk hemat RAM/GPU di device low-end
     final mq = WidgetsBinding.instance.platformDispatcher.views.isNotEmpty
@@ -38,7 +38,7 @@ Widget storyImage(
       // Downscale agar decode lebih ringan, tetap tajam di layar
       cacheWidth: cacheW,
       errorBuilder: (_, __, ___) => Image.asset(
-        'assets/images/covers/default_cover.png',
+        'assets/images/covers/default_cover.jpg',
         fit: fit,
         alignment: alignment,
         gaplessPlayback: gaplessPlayback,

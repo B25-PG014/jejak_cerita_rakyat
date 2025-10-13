@@ -233,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const double _mapExtraHeight = 30;
 
   static const String _defaultCoverPath =
-      'assets/images/covers/default_cover.png';
+      'assets/images/covers/default_cover.jpg';
 
   double? _svgAspect;
   bool _debugTap = false;
