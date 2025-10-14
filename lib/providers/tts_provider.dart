@@ -31,10 +31,32 @@ class TtsProvider extends ChangeNotifier {
   // volume (dipakai UI)
   double _volume = 1.0;
   double get volume => _volume;
+
+  // ====== PATCH realtime volume ======
+  // simpan teks sumber & posisi terakhir yang telah diucap (index original)
+  String _sourceRaw = '';
+  int _lastOriginalIdx = 0;
+  Timer? _volDebounce;
+
   Future<void> setVolume(double v) async {
+    // method lama tetap ada untuk kompatibilitas (tidak realtime)
     _volume = v.clamp(0.0, 1.0);
     if (_ready) await _tts.setVolume(_volume);
     notifyListeners();
+  }
+
+  // Gunakan ini dari UI agar terasa real-time saat sedang bicara
+  Future<void> setVolumeRealtime(double v) async {
+    _volume = v.clamp(0.0, 1.0);
+    if (_ready) await _tts.setVolume(_volume);
+    notifyListeners();
+
+    if (speakingVN.value) {
+      _volDebounce?.cancel();
+      _volDebounce = Timer(const Duration(milliseconds: 160), () async {
+        await _softRestartAtBoundary();
+      });
+    }
   }
 
   // ====== STATE untuk sinkronisasi highlight ======
@@ -57,7 +79,7 @@ class TtsProvider extends ChangeNotifier {
 
     await _pickIndonesianVoice();
     await _tts.setSpeechRate(0.46);
-    await _tts.setPitch(1.08);
+    await _tts.setPitch(0.88);
     await _tts.setVolume(_volume);
 
     _tts.setStartHandler(() {
@@ -79,6 +101,10 @@ class TtsProvider extends ChangeNotifier {
     // Pasang progress handler → tetap forward, tapi kamu akan memetakan di UI
     _tts.setProgressHandler((String text, int start, int end, String word) {
       onProgress?.call(text, start, end, word);
+      // catat posisi original terakhir yg sudah lewat (pakai 'end')
+      try {
+        _lastOriginalIdx = mapEngineToOriginal(end);
+      } catch (_) {}
     });
 
     try {
@@ -146,6 +172,7 @@ class TtsProvider extends ChangeNotifier {
   /// Panggil sebelum mulai `speak()` untuk menyiapkan peta indeks
   /// agar highlight sinkron dengan offset dari engine.
   void setSourceText(String raw) {
+    _sourceRaw = raw; // simpan sumber untuk soft-restart
     final res = _buildEngineIndex(raw);
     _engineText = res.$1;
     _engineToOriginal = res.$2;
@@ -259,6 +286,48 @@ class TtsProvider extends ChangeNotifier {
       }
     } catch (_) {}
     await _tts.setLanguage('id-ID');
+  }
+
+  // ====== Soft-restart di batas kalimat agar volume terasa real-time ======
+  Future<void> _softRestartAtBoundary() async {
+    if (!speakingVN.value || _sourceRaw.isEmpty) return;
+
+    final start = _nextSentenceStart(_sourceRaw, _lastOriginalIdx);
+    final safeStart = (start != null && start < _sourceRaw.length)
+        ? start
+        : _lastOriginalIdx.clamp(0, _sourceRaw.length);
+
+    final remaining = _sourceRaw.substring(safeStart).trimLeft();
+    if (remaining.isEmpty) return;
+
+    try {
+      await _tts.stop();
+    } catch (_) {}
+
+    // rebuild peta sinkronisasi terhadap sisa teks
+    setSourceText(remaining);
+    speakingVN.value = true;
+    await _tts.setVolume(_volume); // pastikan volume baru terpakai
+    await _tts.speak(remaining);
+  }
+
+  int? _nextSentenceStart(String s, int idx) {
+    if (idx <= 0) idx = 0;
+    if (idx >= s.length) return null;
+
+    final punct = RegExp(r'[\.!\?…]');
+    for (int i = idx; i < s.length; i++) {
+      if (punct.hasMatch(s[i])) {
+        int j = i + 1;
+        while (j < s.length && RegExp(r'\s').hasMatch(s[j])) j++;
+        return (j < s.length) ? j : null;
+      }
+    }
+    // fallback: ke spasi terdekat agar tidak memotong di tengah kata
+    for (int i = idx; i < s.length; i++) {
+      if (RegExp(r'\s').hasMatch(s[i])) return i + 1;
+    }
+    return null;
   }
 
   @override

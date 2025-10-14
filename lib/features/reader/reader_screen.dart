@@ -38,6 +38,7 @@ String shortStr(String s, [int n = 48]) {
 const bool kUseSmoothFollow = true; // <- aktifkan natural mode untuk semua page
 
 // ======= PACE GUARD (opsional, off) =======
+// NOTE: tidak dipakai saat smooth follow
 const bool kPaceGuard = false;
 const double kBaseCps = 13.8;
 const double kLeadAllowance = 0.12;
@@ -54,8 +55,8 @@ const int kFlushEveryMs = 30;
 
 // ======= SMOOTH FOLLOW PARAMS =======
 // Update lebih “tenang” untuk mengurangi flicker
-const int kSmoothTickMs = 90; // 40ms -> 90ms
-const double kSmoothLead = 0.06; // tetap sedikit “di depan”
+const int kSmoothTickMs = 60; // 40ms -> 90ms
+const double kSmoothLead = 0.02; // tetap sedikit “di depan”
 const int kMinAdvance = 2; // minimal loncat 2 char baru apply
 
 /// PATCH: helper global untuk menyamakan string UI & string yang di-speak
@@ -138,7 +139,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   Timer? _hiDelayTimer;
 
   // === Throttle params ===
-  static const int _applyEveryMs = 70;
+  static const int _applyEveryMs = 50;
   static const int _scrollDebounceMs = 80;
   int _lastApplyEpochMs = 0;
 
@@ -1639,8 +1640,7 @@ class _ControlsRow extends StatelessWidget {
 
           parent?._speakStartEpochMs = DateTime.now().millisecondsSinceEpoch;
           parent?._emaCps = kBaseCps;
-          parent?._estDurMs = ((text.length / (parent._emaCps)) * 1000)
-              .round();
+          parent?._estDurMs = ((text.length / (parent._emaCps)) * 1000).round();
           dlog(
             'speak() page=${context.read<ReaderProvider>().index + 1} len=${text.length} | "${shortStr(text)}"',
           );
@@ -1702,6 +1702,13 @@ class _ControlsRow extends StatelessWidget {
                 if (r.pages.isEmpty) return;
 
                 final isLast = (r.index + 1) >= r.pages.length;
+
+                // === PATCH: Matikan Auto Read saat user klik Next ===
+                final parent = context
+                    .findAncestorStateOfType<_ReaderScreenState>();
+                if (parent != null) {
+                  parent._autoRead.value = false; // <- Auto Read OFF
+                }
 
                 await tts.stop();
                 afterPageChanged();

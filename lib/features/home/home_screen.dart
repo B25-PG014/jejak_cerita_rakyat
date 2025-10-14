@@ -419,6 +419,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _provIndex = provIndex;
         _validating = false;
       });
+
+      // Refresh hasil pencarian aktif agar konsisten dengan index terbaru
+      if (_searchQuery.trim().isNotEmpty) {
+        _onSearchChanged(_searchQuery);
+      }
     });
   }
 
@@ -428,18 +433,30 @@ class _HomeScreenState extends State<HomeScreen> {
       _visibleStories = _featuredValid;
       _current = 0;
     });
+    // Refresh search agar kembali ke semua wilayah bila ada query
+    if (_searchQuery.trim().isNotEmpty) {
+      _onSearchChanged(_searchQuery);
+    }
   }
 
   // ===== Simple search logic (filter judul) =====
   void _onSearchChanged(String q) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 150), () {
-      final all = context.read<StoryProvider>().stories;
+      final sp = context.read<StoryProvider>();
+
+      // === BASE LIST UNTUK PENCARIAN ===
+      // Jika ada filter wilayah, cari di cerita wilayah tersebut.
+      // Jika tidak ada filter, cari di seluruh cerita.
+      final List<StoryItem> base = _selectedProvince == null
+          ? sp.stories
+          : (_provIndex[_selectedProvince] ?? const <StoryItem>[]);
+
       final qq = q.trim().toLowerCase();
 
       List<StoryItem> res = [];
       if (qq.isNotEmpty) {
-        res = all.where((s) {
+        res = base.where((s) {
           final title = (s.title).toLowerCase();
           return title.contains(qq);
         }).toList();
@@ -663,6 +680,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _visibleStories = list;
       _current = 0;
     });
+
+    // Refresh hasil pencarian jika ada query aktif agar base list berubah ke wilayah terpilih
+    if (_searchQuery.trim().isNotEmpty) {
+      _onSearchChanged(_searchQuery);
+    }
 
     if (list.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

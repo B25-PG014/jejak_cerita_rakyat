@@ -16,6 +16,7 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   bool _showSearch = false;
   final _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode(); // <— tambah FocusNode
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocus.dispose(); // <— dispose FocusNode
     super.dispose();
   }
 
@@ -124,7 +126,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                   : 'Cari Judul',
                               onTap: () {
                                 setState(() => _showSearch = !_showSearch);
-                                if (!_showSearch) _searchCtrl.clear();
+                                if (_showSearch) {
+                                  // pastikan TextField sudah dibangun lalu fokuskan
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (!mounted) return;
+                                    FocusScope.of(
+                                      context,
+                                    ).requestFocus(_searchFocus);
+                                  });
+                                } else {
+                                  _searchCtrl.clear();
+                                  _searchFocus
+                                      .unfocus(); // lepas fokus saat ditutup
+                                }
                               },
                             ),
                           ],
@@ -137,6 +153,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: _searchCtrl,
+                      focusNode: _searchFocus, // <— pakai FocusNode
+                      autofocus: true, // <— fokus otomatis saat muncul
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: 'Cari judul atau sinopsis…',
