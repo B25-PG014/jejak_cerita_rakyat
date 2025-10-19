@@ -1,7 +1,7 @@
 # 📚 Jejak Cerita Rakyat
 > Aksesibel Reader Cerita Rakyat Nusantara — dibuat dengan Flutter.
 
-**Jejak Cerita Rakyat** adalah aplikasi multiplatform (Android, Windows, Web) yang dirancang untuk melestarikan budaya Indonesia melalui digitalisasi cerita rakyat.  
+**Jejak Cerita Rakyat** adalah aplikasi Android yang dirancang untuk melestarikan budaya Indonesia melalui digitalisasi cerita rakyat.  
 Aplikasi ini menghadirkan pengalaman membaca interaktif, mendukung **Text-to-Speech (TTS)**, **font ramah disleksia**, **mode gelap**, dan **pembacaan offline**.
 
 ---
