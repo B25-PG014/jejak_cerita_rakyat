@@ -103,6 +103,8 @@ flutter pub get
 3️⃣ Jalankan Aplikasi
 flutter run
 
+---
+
 🧠 Arsitektur Sistem
 
 Pola Provider (MVVM ringan)
@@ -123,6 +125,8 @@ SettingsProvider →
 
 simpan preferensi (font, tema, ukuran)
 
+---
+
 🧪 Pengujian
 
 ✅ Functional: navigasi, pembacaan cerita, TTS, favorit.
@@ -135,11 +139,15 @@ simpan preferensi (font, tema, ukuran)
 
 ✅ Platform: Android.
 
+---
+
 ⚡ CI/CD
 
 Workflow otomatis lint + build menggunakan GitHub Actions
 
 File: .github/workflows/flutter-ci.yml
+
+---
 
 📚 Tim Capstone (B25-PG014)
 
@@ -151,6 +159,8 @@ Fildzah Aure Gehara Zhafirah
 
 Ulis Leuwol
 
+---
+
 🗺️ Rencana Pengembangan
 
 Tambah cerita 38 provinsi Indonesia.
@@ -160,6 +170,8 @@ Fitur gamifikasi & mode anak.
 Cloud sync (Firebase / Supabase).
 
 Dukungan multi-bahasa (ID-EN).
+
+---
 
 📝 Lisensi
 
