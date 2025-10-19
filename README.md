@@ -6,6 +6,13 @@ Aplikasi ini menghadirkan pengalaman membaca interaktif, mendukung **Text-to-Spe
 
 ---
 
+<img width="1859" height="1129" alt="image" src="https://github.com/user-attachments/assets/d782f3dc-d27f-48df-b3a6-9eb24777d09a" />
+
+<img width="1859" height="1129" alt="image" src="https://github.com/user-attachments/assets/b2c1506c-b322-4847-b5f2-0be19018aa6f" />
+
+
+---
+
 ## 🚀 Fitur Utama
 - 🗺️ **Peta Interaktif** — pilih cerita berdasarkan provinsi.
 - 📖 **Pembaca Cerita** — teks + narasi otomatis (TTS bahasa Indonesia).
@@ -172,8 +179,6 @@ Cloud sync (Firebase / Supabase).
 Dukungan multi-bahasa (ID-EN).
 
 ---
-
-<img width="1859" height="1129" alt="image" src="https://github.com/user-attachments/assets/d782f3dc-d27f-48df-b3a6-9eb24777d09a" />
 
 📝 Lisensi
 
