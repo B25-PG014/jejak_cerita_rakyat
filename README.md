@@ -34,8 +34,11 @@ Aplikasi ini menghadirkan pengalaman membaca interaktif, mendukung **Text-to-Spe
 
 lib/
 ├── app.dart
+
 ├── main.dart
+
 ├── core/
+
 │ ├── local/ → favorite_store.dart, reading_progress_store.dart
 │ ├── utils/ → svg_anchor_loader.dart
 │ └── widgets/ → story_image.dart
@@ -105,10 +108,13 @@ Workflow otomatis lint + build menggunakan GitHub Actions
 File: .github/workflows/flutter-ci.yml
 
 📚 Tim Capstone (B25-PG014)
-Nama	Peran
+
 Fajar Andhika
+
 Febrian Atmadhika
+
 Fildzah Aure Gehara Zhafirah
+
 Ulis Leuwol
 
 🗺️ Rencana Pengembangan
