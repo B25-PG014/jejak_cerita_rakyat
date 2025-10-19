@@ -32,7 +32,8 @@ Aplikasi ini menghadirkan pengalaman membaca interaktif, mendukung **Text-to-Spe
 
 ## 🧱 Struktur Proyek
 
-lib/
+lib
+
 ├── app.dart
 
 ├── main.dart
@@ -40,28 +41,50 @@ lib/
 ├── core/
 
 │ ├── local/ → favorite_store.dart, reading_progress_store.dart
+
 │ ├── utils/ → svg_anchor_loader.dart
 │ └── widgets/ → story_image.dart
+
 ├── data/
+
 │ ├── db/app_database.dart
+
 │ ├── repositories/story_repository.dart
+
 │ └── (dao, models, sources placeholders)
+
 ├── features/
+
 │ ├── home/ → home_screen.dart + widgets/
+
 │ ├── library/ → library_screen.dart, favorites_screen.dart
+
 │ ├── reader/ → reader_screen.dart
+
 │ ├── settings/ → setting_screen.dart
+
 │ ├── splash/ → splash_screen.dart
+
 │ ├── admin/ → admin_upload_page.dart, story_import_service.dart
+
 │ └── tts_demo/ → tts_demo_screen.dart
+
 ├── providers/
+
 │ ├── story_provider.dart
+
 │ ├── reader_provider.dart
+
 │ ├── settings_provider.dart
+
 │ ├── tts_provider.dart
+
 │ └── tts_compat_adapter.dart
+
 └── services/
+
 ├── seed_service.dart
+
 └── tts_service.dart
 
 
@@ -84,10 +107,21 @@ flutter run
 
 Pola Provider (MVVM ringan)
 
-[Assets/DB/JSON] → StoryRepository → StoryProvider → UI (Home, Library, Reader)
-ReaderProvider → kontrol posisi halaman
-TTSService + TTSProvider → narasi suara (id-ID)
-SettingsProvider → simpan preferensi (font, tema, ukuran)
+[Assets/DB/JSON] 
+
+→ StoryRepository → StoryProvider → UI (Home, Library, Reader)
+
+ReaderProvider 
+
+→ kontrol posisi halaman
+
+TTSService + TTSProvider 
+
+→ narasi suara (id-ID)
+
+SettingsProvider → 
+
+simpan preferensi (font, tema, ukuran)
 
 🧪 Pengujian
 
