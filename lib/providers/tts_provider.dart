@@ -319,7 +319,9 @@ class TtsProvider extends ChangeNotifier {
     for (int i = idx; i < s.length; i++) {
       if (punct.hasMatch(s[i])) {
         int j = i + 1;
-        while (j < s.length && RegExp(r'\s').hasMatch(s[j])) j++;
+        while (j < s.length && RegExp(r'\s').hasMatch(s[j])) {
+          j++;
+        }
         return (j < s.length) ? j : null;
       }
     }
