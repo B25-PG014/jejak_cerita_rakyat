@@ -36,9 +36,13 @@ dependencies:
   go_router: ^14.0.0
 
   # UI utilitas
-  flutter_svg: ^2.0.10
+  flutter_svg: ^2.0.10+5
   google_fonts: ^6.2.1
   intl: ^0.19.0
+  fluid_action_card: ^1.0.0+5
+  carousel_slider: ^5.0.0
+  badges: ^3.1.2
+  countries_world_map: ^1.3.0
 
   # Aksesibilitas/penyimpanan preferensi
   shared_preferences: ^2.2.3
@@ -47,6 +51,7 @@ dependencies:
   sqflite: ^2.3.3
   path: ^1.9.0
   path_provider: ^2.1.4
+  file_picker: ^8.0.0
 
   # Text-to-Speech
   flutter_tts: ^4.0.2
@@ -57,11 +62,12 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
+  flutter_native_splash: ^2.4.0
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -74,16 +80,25 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
   assets:
-  - assets/images/ui/
-  - assets/images/covers/
-  - assets/images/splash/
-  - assets/stories/
+    - assets/images/ui/
+    - assets/images/covers/
+    - assets/images/splash/
+    - assets/images/backgrounds/
+    - assets/stories/
+    - assets/data/
+    - assets/svg/
+    - assets/stories/malin-kundang/
+    - assets/stories/nenek-gabus/
+    - assets/stories/ande-lumut/
+    - assets/stories/batu-menangis/
+    - assets/stories/buaya-ajaib/
+    - assets/stories/burung-kekekow/
+    - assets/svg/map_indonesia_simplified.svg
   fonts:
     - family: Atkinson
       fonts:
@@ -94,6 +109,12 @@ flutter:
       fonts:
         - asset: assets/fonts/OpenDyslexic3-Regular.ttf
 
+flutter_native_splash:
+  color: "#000000"                          # warna latar splash
+  image: assets/images/splash/icon_splash.png    # path gambar (harus ada)
+  android_12:                               # aturan khusus Android 12+
+    color: "#000000"
+    image: assets/images/splash/icon_splash.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -125,3 +146,14 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    background_color: "#ffffff"
+    theme_color: "#FF6F3D"
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"

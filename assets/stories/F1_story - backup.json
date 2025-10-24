@@ -1,0 +1,30 @@
+{
+  "slug": "malin-kundang",
+  "title": "Malin Kundang",
+  "subtitle": "Kisah Anak Durhaka",
+  "synopsis": "Malin Kundang, anak miskin yang merantau hingga menjadi kaya raya, kembali ke kampungnya namun durhaka karena tidak mengakui ibunya. Akibatnya, ia dikutuk oleh sang ibu dan berubah menjadi batu.",
+  "locale": "id",
+  "author": "Tim Jejak",
+  "source": "budaya-indonesia.org",
+  "age_min": 6,
+  "age_max": 10,
+
+  "cover": "assets/images/covers/Malin_cov.png", 
+
+
+  "pages": [
+    {
+      "page_no": 1,
+      "image": "p1.png",  
+      "text": "Angasa terbang di atas pegunungan biru...",
+      "tts_ssml": "<speak><p>Angasa <emphasis>terbang</emphasis> di atas pegunungan biru...</p></speak>",
+      "duration_ms": 0
+    },
+    {
+      "page_no": 2,
+      "image": "p2.png",
+      "text": "Ia bertemu burung garuda yang bijak...",
+      "tts_ssml": "<speak><p>Ia bertemu burung <say-as interpret-as='characters'>G</say-as>aruda...</p></speak>"
+    }
+  ]
+}
