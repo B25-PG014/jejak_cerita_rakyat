@@ -151,6 +151,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   double _emaCps = kBaseCps;
   int _clampStreak = 0;
   int _lastClampEpochMs = 0;
+  int _lastAppliedHiE = 0;
 
   // ====== LAG QUEUE state (untuk progress engine) ======
   final List<_HiEv> _pendingHi = <_HiEv>[];
@@ -162,6 +163,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   void _resetHighlight() {
     _currHiStart = 0;
     _currHiEnd = 0;
+    _lastAppliedHiE = 0;
   }
 
   void _cancelHighlightTimers() {
@@ -179,6 +181,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final end = txt.length;
     _currHiStart = (_currHiEnd <= end) ? _currHiEnd : 0;
     _currHiEnd = end;
+    _lastAppliedHiE = _currHiEnd;
     _pendingHi.clear();
     _smoothTimer?.cancel();
     context.read<TtsProvider>().active.value = TextRange(
@@ -640,6 +643,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       if (hiE >= _currHiEnd) {
         _currHiStart = hiS;
         _currHiEnd = hiE;
+        _lastAppliedHiE = hiE;
 
         dlog(
           'applyHL start=$_currHiStart end=$_currHiEnd ratio=${txt.isEmpty ? 0 : (_currHiEnd / txt.length).toStringAsFixed(3)} scrollHas=${_textScroll.hasClients}',
@@ -1187,16 +1191,20 @@ class _TopGlassBar extends StatelessWidget {
           _CircleIconButton(
             icon: Icons.arrow_back,
             onTap: () async {
-              final ctx = context; // cache
               try {
-                await ctx.read<TtsProvider>().stop();
+                await context.read<TtsProvider>().stop();
               } catch (_) {}
               try {
-                await ctx.read<TtsCompatAdapter>().stop();
+                await context.read<TtsCompatAdapter>().stop();
               } catch (_) {}
-              _killHighlight(ctx);
-              if (!ctx.mounted) return;
-              Navigator.of(ctx).pushNamed('/settings');
+              _killHighlight(context); // <— pastikan highlight berhenti
+              try {
+                final r = context.read<ReaderProvider>();
+                if (r.storyId != null) {
+                  await ReadingProgressStore.setPage(r.storyId!, r.index);
+                }
+              } catch (_) {}
+              if (context.mounted) Navigator.of(context).pop();
             },
           ),
           Row(
@@ -1204,22 +1212,17 @@ class _TopGlassBar extends StatelessWidget {
               _CircleIconButton(
                 icon: Icons.settings,
                 onTap: () async {
-                  final ctx = context;
                   try {
-                    await ctx.read<TtsProvider>().stop();
+                    await context.read<TtsProvider>().stop();
                   } catch (_) {}
                   try {
-                    await ctx.read<TtsCompatAdapter>().stop();
+                    await context.read<TtsCompatAdapter>().stop();
                   } catch (_) {}
-                  _killHighlight(ctx);
-                  try {
-                    final r = ctx.read<ReaderProvider>();
-                    if (r.storyId != null) {
-                      await ReadingProgressStore.setPage(r.storyId!, r.index);
-                    }
-                  } catch (_) {}
-                  if (!ctx.mounted) return;
-                  Navigator.of(ctx).pop();
+                  _killHighlight(
+                    context,
+                  ); // <— stop highlight saat buka Settings
+                  if (!context.mounted) return;
+                  Navigator.of(context).pushNamed('/settings');
                 },
               ),
               _CircleIconButton(
@@ -1440,20 +1443,25 @@ class _ReadingPanel extends StatelessWidget {
                           return InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () async {
-                                 autoReadVN.value = !on;
-                                 final ctx = context; // cache
-                                 final tts = ctx.read<TtsProvider>();
-                                 final parent = ctx.findAncestorStateOfType<_ReaderScreenState>();
+                              autoReadVN.value = !on;
+                              final tts = context.read<TtsProvider>();
+                              final parent = context
+                                  .findAncestorStateOfType<
+                                    _ReaderScreenState
+                                  >();
                               if (!autoReadVN.value) {
                                 // dimatikan -> stop suara & highlight
-                                try { await tts.stop(); } catch (_) {}
-                                   try { await ctx.read<TtsCompatAdapter>().stop(); } catch (_) {}
-                                   if (!ctx.mounted) return;
-                                   _killHighlight(ctx);
+                                try {
+                                  await tts.stop();
+                                } catch (_) {}
+                                try {
+                                  await context.read<TtsCompatAdapter>().stop();
+                                } catch (_) {}
+                                _killHighlight(context);
                                 return;
                               }
                               // dinyalakan -> mulai baca halaman aktif
-                                 final r = ctx.read<ReaderProvider>();
+                              final r = context.read<ReaderProvider>();
                               if (!tts.speaking && r.pages.isNotEmpty) {
                                 final text = cleanZW(
                                   r.pages[r.index].textPlain ?? '',
@@ -1467,7 +1475,6 @@ class _ReadingPanel extends StatelessWidget {
                                   parent?._resetHighlight();
                                   parent?._resetUtteranceTiming();
                                   await tts.stop();
-                                  if (!ctx.mounted) return;
                                   parent?._speakStartEpochMs =
                                       DateTime.now().millisecondsSinceEpoch;
                                   parent?._emaCps = kBaseCps;
